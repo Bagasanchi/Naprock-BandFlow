@@ -1,12 +1,11 @@
 import React from 'react';
 import { Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
-type BandAuthProps = {
+type BandAuthenticatorAppProps = {
   isDarkTheme: boolean;
-  onUseAppAsAuthenticator: () => void;
 };
 
-export default function BandAuth({ isDarkTheme, onUseAppAsAuthenticator }: BandAuthProps) {
+export default function BandAuthenticatorApp({ isDarkTheme }: BandAuthenticatorAppProps) {
   const theme = isDarkTheme
     ? {
         background: '#07111F',
@@ -19,8 +18,6 @@ export default function BandAuth({ isDarkTheme, onUseAppAsAuthenticator }: BandA
         secondaryBg: 'rgba(86, 167, 255, 0.08)',
         secondaryBorder: '#56A7FF',
         secondaryText: '#B9DBFF',
-        connectorText: '#DCECFF',
-        connectorLine: 'rgba(161, 182, 214, 0.45)',
       }
     : {
         background: '#EEF5FF',
@@ -33,40 +30,29 @@ export default function BandAuth({ isDarkTheme, onUseAppAsAuthenticator }: BandA
         secondaryBg: '#F6FAFF',
         secondaryBorder: '#1A67C9',
         secondaryText: '#1A67C9',
-        connectorText: '#244E7E',
-        connectorLine: '#A8C5E9',
       };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <View style={styles.container}>
         <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-          <Text style={[styles.questionTitle, { color: theme.title }]}>Authenticated with the band yet?</Text>
-          <Text style={[styles.questionSubtitle, { color: theme.subtitle }]}>Use your biometric band for secure, passwordless access to your workspace.</Text>
+          <Text style={[styles.questionTitle, { color: theme.title }]}>Turn this app into the band authenticator</Text>
+          <Text style={[styles.questionSubtitle, { color: theme.subtitle }]}>Pair the app with the band so this phone can confirm secure access requests.</Text>
 
           <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
 
           <Pressable style={[styles.primaryButton, { backgroundColor: theme.buttonBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Yes, Already Authenticated</Text>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Start pairing</Text>
           </Pressable>
 
           <Pressable
-            onPress={onUseAppAsAuthenticator}
             style={[
               styles.secondaryButton,
               { backgroundColor: theme.secondaryBg, borderColor: theme.secondaryBorder },
             ]}
           >
-            <Text style={[styles.secondaryButtonText, { color: theme.secondaryText }]}>Use App as Authenticator with the Band</Text>
+            <Text style={[styles.secondaryButtonText, { color: theme.secondaryText }]}>Back to band auth</Text>
           </Pressable>
-
-          <View style={styles.connectorRow}>
-            <Text style={[styles.connectorText, { color: theme.connectorText }]}>Worker 👷</Text>
-            <View style={[styles.connectorLine, { backgroundColor: theme.connectorLine }]} />
-            <Text style={[styles.connectorBot, { color: theme.connectorText }]}>🤖</Text>
-            <View style={[styles.connectorLine, { backgroundColor: theme.connectorLine }]} />
-            <Text style={[styles.connectorText, { color: theme.connectorText }]}>Boss 😎</Text>
-          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -141,24 +127,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.1,
     textAlign: 'center',
-  },
-  connectorRow: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  connectorText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  connectorBot: {
-    fontSize: 20,
-    marginHorizontal: 6,
-  },
-  connectorLine: {
-    height: 1,
-    width: 26,
-    marginHorizontal: 8,
   },
 });

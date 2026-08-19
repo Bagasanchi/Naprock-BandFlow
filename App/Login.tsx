@@ -15,9 +15,10 @@ import {
 type LoginProps = {
   isDarkTheme: boolean;
   onBandSSO: () => void;
+  onLogIn: () => void;
 };
 
-export default function Login({ isDarkTheme, onBandSSO }: LoginProps) {
+export default function Login({ isDarkTheme, onBandSSO, onLogIn }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'worker' | 'boss'>('worker');
@@ -161,7 +162,7 @@ export default function Login({ isDarkTheme, onBandSSO }: LoginProps) {
               style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.inputText }]}
             />
 
-            <Pressable style={[styles.primaryButton, { backgroundColor: theme.buttonBg }]}>
+            <Pressable onPress={onLogIn} style={[styles.primaryButton, { backgroundColor: theme.buttonBg }]}>
               <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Log in</Text>
             </Pressable>
 
