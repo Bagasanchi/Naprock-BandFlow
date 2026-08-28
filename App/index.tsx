@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { DarkTheme, DefaultTheme, NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BandAuth from './BandAuth';
 import Intro from './Intro';
@@ -170,9 +170,6 @@ function WorkerDashboard({ isDarkTheme, onSwitchRoles }: WorkerDashboardProps) {
       <ScrollView contentContainerStyle={dashboardStyles.scrollContent}>
         <View style={[dashboardStyles.header, { backgroundColor: theme.header }]}>
           <View style={dashboardStyles.topRow}>
-            <View style={dashboardStyles.avatarWrap}>
-              <Image source={require('../assets/icon.png')} style={dashboardStyles.avatar} resizeMode="cover" />
-            </View>
 
             <View style={dashboardStyles.profileBlock}>
               <Text style={[dashboardStyles.dashboardLabel, { color: 'rgba(255,255,255,0.82)' }]}>Worker Dashboard</Text>
@@ -283,9 +280,7 @@ function BossDashboard({ isDarkTheme, onSwitchRoles }: BossDashboardProps) {
       <View style={[dashboardStyles.container, { backgroundColor: theme.background }]}>
         <View style={[dashboardStyles.hero, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
           <View style={dashboardStyles.topRow}>
-            <View style={dashboardStyles.avatarWrap}>
-              <Image source={require('../assets/icon.png')} style={dashboardStyles.avatar} resizeMode="cover" />
-            </View>
+            
             <View style={dashboardStyles.profileBlock}>
               <Text style={[dashboardStyles.dashboardLabel, { color: theme.subtitle }]}>Boss Dashboard</Text>
               <Text style={[dashboardStyles.userName, { color: theme.title }]}>Beegii bronii James</Text>
