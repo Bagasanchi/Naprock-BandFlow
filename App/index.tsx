@@ -5,13 +5,17 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BandAuth from './BandAuth';
+import Dashboard from './Dashboard';
 import Intro from './Intro';
 import Login from './Login';
+import WorkerDashboard from './WorkerDashboard';
 
 type RootStackParamList = {
   Intro: undefined;
   Login: undefined;
   BandAuth: undefined;
+  BossDashboard: undefined;
+  WorkerDashboard: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -80,6 +84,8 @@ export default function App() {
     Intro: 'Intro',
     Login: 'Login',
     BandAuth: 'Band Auth',
+    BossDashboard: 'Boss Dashboard',
+    WorkerDashboard: 'Worker Dashboard',
   };
 
   return (
@@ -120,6 +126,10 @@ export default function App() {
             {({ navigation }) => (
               <Login
                 isDarkTheme={isDarkTheme}
+                onLogin={(role) => navigation.reset({
+                  index: 0,
+                  routes: [{ name: role === 'boss' ? 'BossDashboard' : 'WorkerDashboard' }],
+                })}
                 onBandSSO={() => navigation.navigate('BandAuth')}
               />
             )}
@@ -127,12 +137,30 @@ export default function App() {
           <Stack.Screen name="BandAuth">
             {() => <BandAuth isDarkTheme={isDarkTheme} />}
           </Stack.Screen>
+          <Stack.Screen name="BossDashboard">
+            {({ navigation }) => (
+              <Dashboard
+                isDarkTheme={isDarkTheme}
+                onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="WorkerDashboard">
+            {({ navigation }) => (
+              <WorkerDashboard
+                isDarkTheme={isDarkTheme}
+                onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
+              />
+            )}
+          </Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
-      <GlobalPageTitle
-        isDarkTheme={isDarkTheme}
-        title={titleByRoute[currentRouteName] ?? currentRouteName}
-      />
+      {currentRouteName !== 'BossDashboard' && currentRouteName !== 'WorkerDashboard' && (
+        <GlobalPageTitle
+          isDarkTheme={isDarkTheme}
+          title={titleByRoute[currentRouteName] ?? currentRouteName}
+        />
+      )}
       <GlobalThemeToggle
         isDarkTheme={isDarkTheme}
         onToggleTheme={() => setIsDarkTheme((prev) => !prev)}

@@ -12,15 +12,18 @@ import {
   View,
 } from 'react-native';
 
+export type LoginRole = 'worker' | 'boss';
+
 type LoginProps = {
   isDarkTheme: boolean;
+  onLogin: (role: LoginRole) => void;
   onBandSSO: () => void;
 };
 
-export default function Login({ isDarkTheme, onBandSSO }: LoginProps) {
+export default function Login({ isDarkTheme, onLogin, onBandSSO }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'worker' | 'boss'>('worker');
+  const [role, setRole] = useState<LoginRole>('worker');
 
   const theme = isDarkTheme
     ? {
@@ -161,7 +164,10 @@ export default function Login({ isDarkTheme, onBandSSO }: LoginProps) {
               style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.inputText }]}
             />
 
-            <Pressable style={[styles.primaryButton, { backgroundColor: theme.buttonBg }]}>
+            <Pressable
+              onPress={() => onLogin(role)}
+              style={[styles.primaryButton, { backgroundColor: theme.buttonBg }]}
+            >
               <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Log in</Text>
             </Pressable>
 
