@@ -135,7 +135,12 @@ export default function App() {
             )}
           </Stack.Screen>
           <Stack.Screen name="BandAuth">
-            {() => <BandAuth isDarkTheme={isDarkTheme} />}
+            {({ navigation }) => (
+              <BandAuth
+                isDarkTheme={isDarkTheme}
+                onUseAppAsAuthenticator={() => navigation.navigate('BandAuthenticatorApp')}
+              />
+            )}
           </Stack.Screen>
           <Stack.Screen name="BossDashboard">
             {({ navigation }) => (
