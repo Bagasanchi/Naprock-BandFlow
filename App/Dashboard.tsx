@@ -4,6 +4,7 @@ import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } fr
 type DashboardProps = {
   isDarkTheme: boolean;
   onLogout: () => void;
+  onCreateWork: () => void;
   userName: string;
 };
 
@@ -25,7 +26,7 @@ const teamItems = [
   { initials: 'CM', task: 'Database migration script', member: 'Chris M.', status: 'In Progress', tone: 'progress' },
 ] as const;
 
-export default function Dashboard({ isDarkTheme, onLogout, userName }: DashboardProps) {
+export default function Dashboard({ isDarkTheme, onCreateWork, onLogout, userName }: DashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#170827', surface: 'rgba(38, 15, 59, 0.92)', border: 'rgba(232, 208, 255, 0.18)',
@@ -79,13 +80,17 @@ export default function Dashboard({ isDarkTheme, onLogout, userName }: Dashboard
 
         <View style={styles.content}>
           {actions.map((action) => (
-            <View key={action.title} style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.actionBorder }]}>
+            <Pressable
+              key={action.title}
+              onPress={action.title === 'Create Work' ? onCreateWork : undefined}
+              style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.actionBorder }]}
+            >
               <Text style={styles.actionIcon}>{action.icon}</Text>
               <View style={styles.actionCopy}>
                 <Text style={[styles.actionTitle, { color: theme.title }]}>{action.title}</Text>
                 <Text style={[styles.actionDetail, { color: theme.body }]}>{action.detail}</Text>
               </View>
-            </View>
+            </Pressable>
           ))}
 
           <View style={[styles.primaryAction, { backgroundColor: theme.accent }]}>
@@ -120,8 +125,8 @@ export default function Dashboard({ isDarkTheme, onLogout, userName }: Dashboard
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  container: { flexGrow: 1, paddingTop: 72, paddingBottom: 36 },
-  hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 },
+  container: { flexGrow: 1, paddingBottom: 36 },
+  hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 90, paddingBottom: 20 },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   identityRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
   logo: { width: 38, height: 38, borderRadius: 12 },

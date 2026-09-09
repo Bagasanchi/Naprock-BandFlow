@@ -4,6 +4,7 @@ import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } fr
 type WorkerDashboardProps = {
   isDarkTheme: boolean;
   onLogout: () => void;
+  onOpenTask: (task: { title: string; priority: string; due: string; progress: number }) => void;
   userName: string;
 };
 
@@ -22,7 +23,7 @@ const tasks: Array<{ title: string; status: string; priority: string; due: strin
   { title: 'Database migration script', status: 'In Progress', priority: 'Medium', due: 'Aug 12', progress: 42, tone: 'progress' },
 ];
 
-export default function WorkerDashboard({ isDarkTheme, onLogout, userName }: WorkerDashboardProps) {
+export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, userName }: WorkerDashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#07111F', surface: 'rgba(11, 22, 39, 0.92)', border: 'rgba(161, 182, 214, 0.2)',
@@ -82,7 +83,11 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, userName }: Wor
           {tasks.map((task) => {
             const status = statuses[task.tone];
             return (
-              <View key={task.title} style={[styles.taskCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Pressable
+                key={task.title}
+                onPress={() => onOpenTask(task)}
+                style={[styles.taskCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              >
                 <View style={styles.taskTopRow}>
                   <Text style={[styles.taskTitle, { color: theme.title }]}>{task.title}</Text>
                   <View style={[styles.statusChip, { backgroundColor: status.backgroundColor }]}><Text style={[styles.statusText, { color: status.color }]}>{task.status}</Text></View>
@@ -94,14 +99,9 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, userName }: Wor
                     <Text style={[styles.progressText, { color: theme.body }]}>{task.progress}%</Text>
                   </View>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
-          <View style={[styles.clarificationCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.title }]}>Ask for Clarification</Text>
-            <Text style={[styles.clarificationCopy, { color: theme.body }]}>Chat with your boss or AI assistant when work needs context.</Text>
-            <View style={[styles.chatButton, { backgroundColor: theme.hero }]}><Text style={[styles.chatButtonText, { color: theme.accent }]}>💬  Open Chat</Text></View>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -109,8 +109,8 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, userName }: Wor
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 }, container: { flexGrow: 1, paddingTop: 72, paddingBottom: 36 },
-  hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 },
+  safeArea: { flex: 1 }, container: { flexGrow: 1, paddingBottom: 36 },
+  hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 90, paddingBottom: 20 },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   identityRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }, logo: { width: 38, height: 38, borderRadius: 12 },
   eyebrow: { fontSize: 12, fontWeight: '700' }, name: { fontSize: 16, fontWeight: '900', marginTop: 1 },
@@ -124,6 +124,4 @@ const styles = StyleSheet.create({
   statusChip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }, statusText: { fontSize: 11, fontWeight: '800' },
   taskBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, taskMeta: { flex: 1, fontSize: 12, fontWeight: '600' },
   progressGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 }, progressTrack: { width: 64, height: 6, borderRadius: 99, overflow: 'hidden' }, progressFill: { height: '100%', borderRadius: 99 }, progressText: { fontSize: 11, fontWeight: '800' },
-  clarificationCard: { borderWidth: 1, borderRadius: 18, marginTop: 6, padding: 16 }, clarificationCopy: { fontSize: 13, lineHeight: 19, marginTop: 6 },
-  chatButton: { alignItems: 'center', borderRadius: 14, marginTop: 14, paddingVertical: 12 }, chatButtonText: { fontSize: 14, fontWeight: '800' },
 });

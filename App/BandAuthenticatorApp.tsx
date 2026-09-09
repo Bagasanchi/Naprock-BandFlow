@@ -35,23 +35,36 @@ export default function BandAuthenticatorApp({ isDarkTheme }: BandAuthenticatorA
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <View style={styles.container}>
-        <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.cardBorder }]}>
-          <Text style={[styles.questionTitle, { color: theme.title }]}>Turn this app into the band authenticator</Text>
-          <Text style={[styles.questionSubtitle, { color: theme.subtitle }]}>Pair the app with the band so this phone can confirm secure access requests.</Text>
+        <View style={styles.content}>
+          <View style={styles.heading}>
+            <Text style={[styles.title, { color: theme.title }]}>Link Your Band</Text>
+            <Text style={[styles.subtitle, { color: theme.subtitle }]}>Use the app as a biometric authenticator</Text>
+          </View>
 
-          <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+          <View style={styles.pairingContent}>
+            <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+
+            <Text style={[styles.prompt, { color: theme.title }]}>Tap the band to link</Text>
+            <Text style={[styles.instruction, { color: theme.subtitle }]}>Hold your biometric band near the device</Text>
+
+            <View style={styles.statusRow}>
+              <View style={styles.statusItem}>
+                <View style={styles.statusDot} />
+                <Text style={[styles.statusText, { color: theme.subtitle }]}>Band detected</Text>
+              </View>
+              <View style={styles.statusItem}>
+                <View style={styles.statusDot} />
+                <Text style={[styles.statusText, { color: theme.subtitle }]}>Biometric read</Text>
+              </View>
+              <View style={styles.statusItem}>
+                <View style={styles.statusDot} />
+                <Text style={[styles.statusText, { color: theme.subtitle }]}>Identity verified</Text>
+              </View>
+            </View>
+          </View>
 
           <Pressable style={[styles.primaryButton, { backgroundColor: theme.buttonBg }]}>
-            <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Start pairing</Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.secondaryButton,
-              { backgroundColor: theme.secondaryBg, borderColor: theme.secondaryBorder },
-            ]}
-          >
-            <Text style={[styles.secondaryButtonText, { color: theme.secondaryText }]}>Back to band auth</Text>
+            <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Tap to Pair Band</Text>
           </Pressable>
         </View>
       </View>
@@ -66,41 +79,83 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    justifyContent: 'center',
+    paddingVertical: 28,
   },
-  card: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 22,
+  content: {
+    flex: 1,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 8,
   },
-  logo: {
-    width: 92,
-    height: 92,
-    borderRadius: 22,
-    alignSelf: 'center',
-    marginBottom: 20,
+  heading: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: 28,
   },
-  questionTitle: {
-    fontSize: 24,
-    lineHeight: 30,
+  title: {
+    fontSize: 30,
+    lineHeight: 36,
     fontWeight: '900',
     textAlign: 'center',
     marginBottom: 8,
   },
-  questionSubtitle: {
+  subtitle: {
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
-    marginBottom: 18,
+  },
+  pairingContent: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  logo: {
+    width: 132,
+    height: 132,
+    borderRadius: 28,
+    marginBottom: 26,
+  },
+  prompt: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  instruction: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  statusRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statusItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#8C96A3',
+    marginTop: 4,
+    marginRight: 5,
+  },
+  statusText: {
+    flexShrink: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: 'left',
   },
   primaryButton: {
-    minHeight: 50,
+    minHeight: 54,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -111,21 +166,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.2,
-  },
-  secondaryButton: {
-    marginTop: 10,
-    minHeight: 50,
-    borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    alignSelf: 'stretch',
-  },
-  secondaryButtonText: {
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 0.1,
-    textAlign: 'center',
   },
 });

@@ -5,10 +5,13 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BandAuth from './BandAuth';
+import BandAuthenticatorApp from './BandAuthenticatorApp';
 import Dashboard from './Dashboard';
+import CreateWork from './CreateWork';
 import Intro from './Intro';
 import Login from './Login';
 import SignUp from './SignUp';
+import TaskDetail from './TaskDetail';
 import WorkerDashboard from './WorkerDashboard';
 
 type RootStackParamList = {
@@ -16,6 +19,15 @@ type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
   BandAuth: undefined;
+  BandAuthenticatorApp: undefined;
+  TaskDetail: {
+    title: string;
+    priority: string;
+    due: string;
+    progress: number;
+    workerName: string;
+  };
+  CreateWork: undefined;
   BossDashboard: { userName?: string } | undefined;
   WorkerDashboard: { userName?: string } | undefined;
 };
@@ -87,6 +99,9 @@ export default function App() {
     Login: 'Login',
     SignUp: 'Sign up',
     BandAuth: 'Band Auth',
+    BandAuthenticatorApp: 'Band Authenticator',
+    TaskDetail: 'Task Details',
+    CreateWork: 'Create Work',
     BossDashboard: 'Boss Dashboard',
     WorkerDashboard: 'Worker Dashboard',
   };
@@ -158,14 +173,21 @@ export default function App() {
               />
             )}
           </Stack.Screen>
+          <Stack.Screen name="BandAuthenticatorApp">
+            {() => <BandAuthenticatorApp isDarkTheme={isDarkTheme} />}
+          </Stack.Screen>
           <Stack.Screen name="BossDashboard">
             {({ navigation, route }) => (
               <Dashboard
                 isDarkTheme={isDarkTheme}
                 userName={route.params?.userName ?? 'Workspace member'}
                 onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
+                onCreateWork={() => navigation.navigate('CreateWork')}
               />
             )}
+          </Stack.Screen>
+          <Stack.Screen name="CreateWork">
+            {() => <CreateWork isDarkTheme={isDarkTheme} />}
           </Stack.Screen>
           <Stack.Screen name="WorkerDashboard">
             {({ navigation, route }) => (
@@ -173,12 +195,25 @@ export default function App() {
                 isDarkTheme={isDarkTheme}
                 userName={route.params?.userName ?? 'Workspace member'}
                 onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
+                onOpenTask={(task) => navigation.navigate('TaskDetail', { ...task, workerName: route.params?.userName ?? 'Workspace member' })}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="TaskDetail">
+            {({ route }) => (
+              <TaskDetail
+                isDarkTheme={isDarkTheme}
+                title={route.params.title}
+                priority={route.params.priority}
+                due={route.params.due}
+                progress={route.params.progress}
+                workerName={route.params.workerName}
               />
             )}
           </Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
-      {currentRouteName !== 'BossDashboard' && currentRouteName !== 'WorkerDashboard' && (
+      {currentRouteName !== 'BossDashboard' && currentRouteName !== 'WorkerDashboard' && currentRouteName !== 'TaskDetail' && (
         <GlobalPageTitle
           isDarkTheme={isDarkTheme}
           title={titleByRoute[currentRouteName] ?? currentRouteName}
