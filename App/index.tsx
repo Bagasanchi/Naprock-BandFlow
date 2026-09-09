@@ -8,14 +8,16 @@ import BandAuth from './BandAuth';
 import Dashboard from './Dashboard';
 import Intro from './Intro';
 import Login from './Login';
+import SignUp from './SignUp';
 import WorkerDashboard from './WorkerDashboard';
 
 type RootStackParamList = {
   Intro: undefined;
   Login: undefined;
+  SignUp: undefined;
   BandAuth: undefined;
-  BossDashboard: undefined;
-  WorkerDashboard: undefined;
+  BossDashboard: { userName?: string } | undefined;
+  WorkerDashboard: { userName?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -29,7 +31,7 @@ function GlobalThemeToggle({ isDarkTheme, onToggleTheme }: GlobalThemeToggleProp
   const insets = useSafeAreaInsets();
 
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFillObject}>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <Pressable
         onPress={onToggleTheme}
         style={[
@@ -57,7 +59,7 @@ function GlobalPageTitle({ isDarkTheme, title }: GlobalPageTitleProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View
         style={[
           styles.globalPageTitle,
@@ -83,6 +85,7 @@ export default function App() {
   const titleByRoute: Record<keyof RootStackParamList, string> = {
     Intro: 'Intro',
     Login: 'Login',
+    SignUp: 'Sign up',
     BandAuth: 'Band Auth',
     BossDashboard: 'Boss Dashboard',
     WorkerDashboard: 'Worker Dashboard',
@@ -126,11 +129,24 @@ export default function App() {
             {({ navigation }) => (
               <Login
                 isDarkTheme={isDarkTheme}
-                onLogin={(role) => navigation.reset({
+                onLogin={(role, userName) => navigation.reset({
                   index: 0,
-                  routes: [{ name: role === 'boss' ? 'BossDashboard' : 'WorkerDashboard' }],
+                  routes: [{
+                    name: role === 'boss' ? 'BossDashboard' : 'WorkerDashboard',
+                    params: { userName },
+                  }],
                 })}
                 onBandSSO={() => navigation.navigate('BandAuth')}
+                onCreateAccount={() => navigation.navigate('SignUp')}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="SignUp">
+            {({ navigation }) => (
+              <SignUp
+                isDarkTheme={isDarkTheme}
+                onSignUp={() => navigation.navigate('Login')}
+                onBackToLogin={() => navigation.navigate('Login')}
               />
             )}
           </Stack.Screen>
@@ -143,17 +159,19 @@ export default function App() {
             )}
           </Stack.Screen>
           <Stack.Screen name="BossDashboard">
-            {({ navigation }) => (
+            {({ navigation, route }) => (
               <Dashboard
                 isDarkTheme={isDarkTheme}
+                userName={route.params?.userName ?? 'Workspace member'}
                 onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
               />
             )}
           </Stack.Screen>
           <Stack.Screen name="WorkerDashboard">
-            {({ navigation }) => (
+            {({ navigation, route }) => (
               <WorkerDashboard
                 isDarkTheme={isDarkTheme}
+                userName={route.params?.userName ?? 'Workspace member'}
                 onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
               />
             )}

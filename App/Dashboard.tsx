@@ -4,6 +4,7 @@ import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } fr
 type DashboardProps = {
   isDarkTheme: boolean;
   onLogout: () => void;
+  userName: string;
 };
 
 const overview = [
@@ -24,7 +25,7 @@ const teamItems = [
   { initials: 'CM', task: 'Database migration script', member: 'Chris M.', status: 'In Progress', tone: 'progress' },
 ] as const;
 
-export default function Dashboard({ isDarkTheme, onLogout }: DashboardProps) {
+export default function Dashboard({ isDarkTheme, onLogout, userName }: DashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#170827', surface: 'rgba(38, 15, 59, 0.92)', border: 'rgba(232, 208, 255, 0.18)',
@@ -57,7 +58,7 @@ export default function Dashboard({ isDarkTheme, onLogout }: DashboardProps) {
               <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
               <View>
                 <Text style={[styles.eyebrow, { color: theme.body }]}>Boss Dashboard</Text>
-                <Text style={[styles.name, { color: theme.title }]}>Sergei Borgovich</Text>
+                <Text style={[styles.name, { color: theme.title }]}>{userName}</Text>
               </View>
             </View>
             <Pressable onPress={onLogout} style={[styles.roleButton, { backgroundColor: theme.accent }]}>

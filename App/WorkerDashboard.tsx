@@ -4,6 +4,7 @@ import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } fr
 type WorkerDashboardProps = {
   isDarkTheme: boolean;
   onLogout: () => void;
+  userName: string;
 };
 
 const stats = [
@@ -21,7 +22,7 @@ const tasks: Array<{ title: string; status: string; priority: string; due: strin
   { title: 'Database migration script', status: 'In Progress', priority: 'Medium', due: 'Aug 12', progress: 42, tone: 'progress' },
 ];
 
-export default function WorkerDashboard({ isDarkTheme, onLogout }: WorkerDashboardProps) {
+export default function WorkerDashboard({ isDarkTheme, onLogout, userName }: WorkerDashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#07111F', surface: 'rgba(11, 22, 39, 0.92)', border: 'rgba(161, 182, 214, 0.2)',
@@ -52,7 +53,7 @@ export default function WorkerDashboard({ isDarkTheme, onLogout }: WorkerDashboa
               <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
               <View>
                 <Text style={[styles.eyebrow, { color: theme.body }]}>Worker Dashboard</Text>
-                <Text style={[styles.name, { color: theme.title }]}>Tuvshinzaya Enkhbayar</Text>
+                <Text style={[styles.name, { color: theme.title }]}>{userName}</Text>
               </View>
             </View>
             <View style={styles.controls}>
