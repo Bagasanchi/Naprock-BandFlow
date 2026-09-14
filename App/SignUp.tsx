@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { signup } from '../lib/api';
 
 type SignUpProps = {
   isDarkTheme: boolean;
@@ -41,27 +41,15 @@ export default function SignUp({ isDarkTheme, onSignUp, onBackToLogin }: SignUpP
       return;
     }
 
-    if (!supabase) {
-      setErrorMessage('Add your Supabase values to the local .env file first.');
-      return;
-    }
-
     setIsSubmitting(true);
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: { full_name: fullName.trim() },
-      },
-    });
-    setIsSubmitting(false);
-
-    if (error) {
-      setErrorMessage(error.message);
-      return;
+    try {
+      await signup(fullName.trim(), email.trim(), password);
+      setIsSubmitting(false);
+      onSignUp();
+    } catch (error) {
+      setIsSubmitting(false);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to create account.');
     }
-
-    onSignUp();
   };
 
   const theme = isDarkTheme

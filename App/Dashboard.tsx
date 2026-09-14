@@ -1,32 +1,18 @@
 import React from 'react';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { WorkItem } from '../lib/work';
 
 type DashboardProps = {
   isDarkTheme: boolean;
   onLogout: () => void;
   onCreateWork: () => void;
+  onSeeProgress: () => void;
+  onAssignWork: () => void;
+  workItems: WorkItem[];
   userName: string;
 };
 
-const overview = [
-  { icon: '📊', value: '5', label: 'Total Tasks' },
-  { icon: '⚙️', value: '2', label: 'In Progress' },
-  { icon: '🏁', value: '1', label: 'Done' },
-];
-
-const actions = [
-  { icon: '✏️', title: 'Create Work', detail: 'Define new tasks or projects' },
-  { icon: '📈', title: 'See Work Progress', detail: 'Sprint analytics and team velocity' },
-];
-
-const teamItems = [
-  { initials: 'AR', task: 'Design system audit', member: 'Alex R.', status: 'In Progress', tone: 'progress' },
-  { initials: 'ST', task: 'API integration layer', member: 'Sam T.', status: 'Review', tone: 'review' },
-  { initials: 'JL', task: 'Onboarding flow UX', member: 'Jordan L.', status: 'Done', tone: 'done' },
-  { initials: 'CM', task: 'Database migration script', member: 'Chris M.', status: 'In Progress', tone: 'progress' },
-] as const;
-
-export default function Dashboard({ isDarkTheme, onCreateWork, onLogout, userName }: DashboardProps) {
+export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, userName, workItems }: DashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#170827', surface: 'rgba(38, 15, 59, 0.92)', border: 'rgba(232, 208, 255, 0.18)',
@@ -49,6 +35,15 @@ export default function Dashboard({ isDarkTheme, onCreateWork, onLogout, userNam
     review: { backgroundColor: theme.reviewBg, color: theme.reviewText },
     done: { backgroundColor: theme.doneBg, color: theme.doneText },
   };
+  const overview = [
+    { icon: '📊', value: String(workItems.length), label: 'Total Tasks' },
+    { icon: '⚙️', value: String(workItems.filter((item) => item.status === 'In Progress').length), label: 'In Progress' },
+    { icon: '🏁', value: String(workItems.filter((item) => item.status === 'Done').length), label: 'Done' },
+  ];
+  const actions = [
+    { icon: '✏️', title: 'Create Work', detail: 'Define new tasks or projects', onPress: onCreateWork },
+    { icon: '📈', title: 'See Work Progress', detail: 'Sprint analytics and team velocity', onPress: onSeeProgress },
+  ];
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -82,7 +77,7 @@ export default function Dashboard({ isDarkTheme, onCreateWork, onLogout, userNam
           {actions.map((action) => (
             <Pressable
               key={action.title}
-              onPress={action.title === 'Create Work' ? onCreateWork : undefined}
+              onPress={action.onPress}
               style={[styles.actionCard, { backgroundColor: theme.surface, borderColor: theme.actionBorder }]}
             >
               <Text style={styles.actionIcon}>{action.icon}</Text>
@@ -93,24 +88,26 @@ export default function Dashboard({ isDarkTheme, onCreateWork, onLogout, userNam
             </Pressable>
           ))}
 
-          <View style={[styles.primaryAction, { backgroundColor: theme.accent }]}>
+          <Pressable onPress={onAssignWork} style={[styles.primaryAction, { backgroundColor: theme.accent }]}>
             <Text style={styles.actionIcon}>🤖</Text>
             <View style={styles.actionCopy}>
               <Text style={[styles.actionTitle, { color: theme.accentText }]}>Assign Work to Specific Worker</Text>
               <Text style={[styles.actionDetail, { color: theme.accentText }]}>AI-powered recommendations</Text>
             </View>
-          </View>
+          </Pressable>
 
           <View style={[styles.teamCard, { backgroundColor: theme.surface, borderColor: theme.actionBorder }]}>
             <Text style={[styles.teamTitle, { color: theme.title }]}>Team Overview</Text>
-            {teamItems.map((item, index) => {
-              const status = statusTheme[item.tone];
+            {workItems.length === 0 && <Text style={[styles.emptyText, { color: theme.body }]}>No work has been assigned yet.</Text>}
+            {workItems.map((item, index) => {
+              const tone = item.status === 'Done' ? 'done' : item.status === 'Review' ? 'review' : 'progress';
+              const status = statusTheme[tone];
               return (
-                <View key={item.initials} style={[styles.teamRow, index !== teamItems.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: 1 }]}>
-                  <View style={[styles.avatar, { backgroundColor: theme.avatar }]}><Text style={styles.avatarText}>{item.initials}</Text></View>
+                <View key={item.id} style={[styles.teamRow, index !== workItems.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: 1 }]}>
+                  <View style={[styles.avatar, { backgroundColor: theme.avatar }]}><Text style={styles.avatarText}>{item.assignedTo.split(' ').map((part) => part[0]).join('').slice(0, 2)}</Text></View>
                   <View style={styles.taskCopy}>
-                    <Text style={[styles.taskTitle, { color: theme.title }]} numberOfLines={1}>{item.task}</Text>
-                    <Text style={[styles.taskMember, { color: theme.body }]}>{item.member}</Text>
+                    <Text style={[styles.taskTitle, { color: theme.title }]} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[styles.taskMember, { color: theme.body }]}>{item.assignedTo}</Text>
                   </View>
                   <View style={[styles.statusChip, { backgroundColor: status.backgroundColor }]}><Text style={[styles.statusText, { color: status.color }]}>{item.status}</Text></View>
                 </View>
@@ -156,4 +153,5 @@ const styles = StyleSheet.create({
   taskMember: { fontSize: 12, marginTop: 2 },
   statusChip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   statusText: { fontSize: 11, fontWeight: '800' },
+  emptyText: { fontSize: 13, paddingVertical: 18 },
 });

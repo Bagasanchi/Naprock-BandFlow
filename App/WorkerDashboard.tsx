@@ -1,10 +1,13 @@
 import React from 'react';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { WorkItem } from '../lib/work';
 
 type WorkerDashboardProps = {
   isDarkTheme: boolean;
   onLogout: () => void;
   onOpenTask: (task: { title: string; priority: string; due: string; progress: number }) => void;
+  onViewAll: () => void;
+  workItems: WorkItem[];
   userName: string;
 };
 
@@ -14,16 +17,7 @@ const stats = [
   { icon: '👥', value: '5', label: 'Team Size' },
 ];
 
-type TaskTone = 'progress' | 'review' | 'done';
-
-const tasks: Array<{ title: string; status: string; priority: string; due: string; progress: number; tone: TaskTone }> = [
-  { title: 'Design system audit', status: 'In Progress', priority: 'High', due: 'Aug 7', progress: 65, tone: 'progress' },
-  { title: 'API integration layer', status: 'Review', priority: 'High', due: 'Aug 9', progress: 90, tone: 'review' },
-  { title: 'Onboarding flow UX', status: 'Done', priority: 'Medium', due: 'Aug 4', progress: 100, tone: 'done' },
-  { title: 'Database migration script', status: 'In Progress', priority: 'Medium', due: 'Aug 12', progress: 42, tone: 'progress' },
-];
-
-export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, userName }: WorkerDashboardProps) {
+export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onViewAll, userName, workItems }: WorkerDashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#07111F', surface: 'rgba(11, 22, 39, 0.92)', border: 'rgba(161, 182, 214, 0.2)',
@@ -44,6 +38,11 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, use
     review: { backgroundColor: theme.reviewBg, color: theme.reviewText },
     done: { backgroundColor: theme.doneBg, color: theme.doneText },
   };
+  const stats = [
+    { icon: '📋', value: String(workItems.filter((item) => item.status !== 'Done').length), label: 'Active Tasks' },
+    { icon: '✅', value: String(workItems.filter((item) => item.status === 'Done').length), label: 'Completed' },
+    { icon: '👥', value: workItems.length ? '1' : '0', label: 'Team Size' },
+  ];
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -78,13 +77,17 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, use
         <View style={styles.content}>
           <View style={styles.sectionHeading}>
             <Text style={[styles.sectionTitle, { color: theme.title }]}>Manage Tasks</Text>
-            <Text style={[styles.viewAll, { color: theme.accent }]}>View all</Text>
+            <Pressable onPress={onViewAll} hitSlop={8}>
+              <Text style={[styles.viewAll, { color: theme.accent }]}>View all</Text>
+            </Pressable>
           </View>
-          {tasks.map((task) => {
-            const status = statuses[task.tone];
+          {workItems.length === 0 && <Text style={[styles.emptyText, { color: theme.body }]}>Your assigned work will appear here.</Text>}
+          {workItems.map((task) => {
+            const tone = task.status === 'Done' ? 'done' : task.status === 'Review' ? 'review' : 'progress';
+            const status = statuses[tone];
             return (
               <Pressable
-                key={task.title}
+                key={task.id}
                 onPress={() => onOpenTask(task)}
                 style={[styles.taskCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
               >
@@ -124,4 +127,5 @@ const styles = StyleSheet.create({
   statusChip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 }, statusText: { fontSize: 11, fontWeight: '800' },
   taskBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, taskMeta: { flex: 1, fontSize: 12, fontWeight: '600' },
   progressGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 }, progressTrack: { width: 64, height: 6, borderRadius: 99, overflow: 'hidden' }, progressFill: { height: '100%', borderRadius: 99 }, progressText: { fontSize: 11, fontWeight: '800' },
+  emptyText: { fontSize: 13, paddingVertical: 20 },
 });

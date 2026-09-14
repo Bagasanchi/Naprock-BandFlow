@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { supabase } from '../lib/supabase';
+import { login } from '../lib/api';
 
 export type LoginRole = 'worker' | 'boss';
 
@@ -37,48 +37,15 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
       return;
     }
 
-    if (!supabase) {
-      setErrorMessage('Add your Supabase values to the local .env file first.');
-      return;
-    }
-
     setIsSubmitting(true);
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    if (error) {
+    try {
+      const user = await login(email.trim(), password);
       setIsSubmitting(false);
-      setErrorMessage(error.message);
-      return;
+      onLogin(user.role, user.fullName);
+    } catch (error) {
+      setIsSubmitting(false);
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to sign in.');
     }
-
-    let loginRole: LoginRole = 'worker';
-    let profileName = 'Workspace member';
-    if (data.user) {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('status, full_name')
-        .eq('id', data.user.id)
-        .maybeSingle();
-
-      if (profileError) {
-        setIsSubmitting(false);
-        setErrorMessage(profileError.message);
-        return;
-      }
-
-      if (profile?.status === 'boss') {
-        loginRole = 'boss';
-      }
-      if (profile?.full_name?.trim()) {
-        profileName = profile.full_name.trim();
-      }
-    }
-
-    setIsSubmitting(false);
-    onLogin(loginRole, profileName);
   };
 
   const theme = isDarkTheme

@@ -13,6 +13,11 @@ import Login from './Login';
 import SignUp from './SignUp';
 import TaskDetail from './TaskDetail';
 import WorkerDashboard from './WorkerDashboard';
+import WorkerTasks from './WorkerTasks';
+import BossProgress from './BossProgress';
+import AssignWork from './AssignWork';
+import type { WorkItem } from '../lib/work';
+import * as api from '../lib/api';
 
 type RootStackParamList = {
   Intro: undefined;
@@ -30,9 +35,20 @@ type RootStackParamList = {
   CreateWork: undefined;
   BossDashboard: { userName?: string } | undefined;
   WorkerDashboard: { userName?: string } | undefined;
+  WorkerTasks: { userName?: string } | undefined;
+  BossProgress: { userName?: string } | undefined;
+  AssignWork: { userName?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+function isWorkAssignedToUser(assignedTo: string, userName: string) {
+  const assignedName = assignedTo.trim().toLowerCase();
+  const loggedInName = userName.trim().toLowerCase();
+  if (!assignedName || !loggedInName) return false;
+  if (assignedName === loggedInName) return true;
+  return assignedName.split(/\s+/)[0] === loggedInName.split(/\s+/)[0];
+}
 
 type GlobalThemeToggleProps = {
   isDarkTheme: boolean;
@@ -91,8 +107,17 @@ function GlobalPageTitle({ isDarkTheme, title }: GlobalPageTitleProps) {
 
 export default function App() {
   const [isDarkTheme, setIsDarkTheme] = useState(true);
+  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [currentRouteName, setCurrentRouteName] = useState<keyof RootStackParamList>('Intro');
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
+
+  const refreshWork = async () => {
+    try {
+      setWorkItems(await api.getWork());
+    } catch {
+      setWorkItems([]);
+    }
+  };
 
   const titleByRoute: Record<keyof RootStackParamList, string> = {
     Intro: 'Intro',
@@ -104,6 +129,9 @@ export default function App() {
     CreateWork: 'Create Work',
     BossDashboard: 'Boss Dashboard',
     WorkerDashboard: 'Worker Dashboard',
+    WorkerTasks: 'All Tasks',
+    BossProgress: 'Work Progress',
+    AssignWork: 'Assign Work',
   };
 
   return (
@@ -144,13 +172,16 @@ export default function App() {
             {({ navigation }) => (
               <Login
                 isDarkTheme={isDarkTheme}
-                onLogin={(role, userName) => navigation.reset({
-                  index: 0,
-                  routes: [{
-                    name: role === 'boss' ? 'BossDashboard' : 'WorkerDashboard',
-                    params: { userName },
-                  }],
-                })}
+                onLogin={(role, userName) => {
+                  void refreshWork();
+                  navigation.reset({
+                    index: 0,
+                    routes: [{
+                      name: role === 'boss' ? 'BossDashboard' : 'WorkerDashboard',
+                      params: { userName },
+                    }],
+                  });
+                }}
                 onBandSSO={() => navigation.navigate('BandAuth')}
                 onCreateAccount={() => navigation.navigate('SignUp')}
               />
@@ -181,21 +212,70 @@ export default function App() {
               <Dashboard
                 isDarkTheme={isDarkTheme}
                 userName={route.params?.userName ?? 'Workspace member'}
-                onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
+                onLogout={() => { void api.logout(); navigation.reset({ index: 0, routes: [{ name: 'Intro' }] }); }}
                 onCreateWork={() => navigation.navigate('CreateWork')}
+                onSeeProgress={() => navigation.navigate('BossProgress', { userName: route.params?.userName })}
+                onAssignWork={() => navigation.navigate('AssignWork', { userName: route.params?.userName })}
+                workItems={workItems}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="AssignWork">
+            {({ navigation, route }) => (
+              <AssignWork
+                isDarkTheme={isDarkTheme}
+                userName={route.params?.userName ?? 'Workspace member'}
+                onAssignWork={async (work) => {
+                  await api.createWork(work);
+                  await refreshWork();
+                  navigation.goBack();
+                }}
+                onBack={() => navigation.goBack()}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="BossProgress">
+            {({ navigation, route }) => (
+              <BossProgress
+                isDarkTheme={isDarkTheme}
+                userName={route.params?.userName ?? 'Workspace member'}
+                workItems={workItems}
+                onBack={() => navigation.goBack()}
               />
             )}
           </Stack.Screen>
           <Stack.Screen name="CreateWork">
-            {() => <CreateWork isDarkTheme={isDarkTheme} />}
+            {({ navigation }) => (
+              <CreateWork
+                isDarkTheme={isDarkTheme}
+                onPublishWork={async (work) => {
+                  await Promise.all(work.map((item) => api.createWork(item)));
+                  await refreshWork();
+                  navigation.goBack();
+                }}
+              />
+            )}
           </Stack.Screen>
           <Stack.Screen name="WorkerDashboard">
             {({ navigation, route }) => (
               <WorkerDashboard
                 isDarkTheme={isDarkTheme}
                 userName={route.params?.userName ?? 'Workspace member'}
-                onLogout={() => navigation.reset({ index: 0, routes: [{ name: 'Intro' }] })}
+                onLogout={() => { void api.logout(); navigation.reset({ index: 0, routes: [{ name: 'Intro' }] }); }}
                 onOpenTask={(task) => navigation.navigate('TaskDetail', { ...task, workerName: route.params?.userName ?? 'Workspace member' })}
+                onViewAll={() => navigation.navigate('WorkerTasks', { userName: route.params?.userName })}
+                workItems={workItems.filter((item) => isWorkAssignedToUser(item.assignedTo, route.params?.userName ?? 'Workspace member'))}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="WorkerTasks">
+            {({ navigation, route }) => (
+              <WorkerTasks
+                isDarkTheme={isDarkTheme}
+                userName={route.params?.userName ?? 'Workspace member'}
+                onBack={() => navigation.goBack()}
+                onOpenTask={(task) => navigation.navigate('TaskDetail', { ...task, workerName: route.params?.userName ?? 'Workspace member' })}
+                workItems={workItems.filter((item) => isWorkAssignedToUser(item.assignedTo, route.params?.userName ?? 'Workspace member'))}
               />
             )}
           </Stack.Screen>
@@ -213,7 +293,7 @@ export default function App() {
           </Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
-      {currentRouteName !== 'BossDashboard' && currentRouteName !== 'WorkerDashboard' && currentRouteName !== 'TaskDetail' && (
+      {currentRouteName !== 'BossDashboard' && currentRouteName !== 'BossProgress' && currentRouteName !== 'AssignWork' && currentRouteName !== 'WorkerDashboard' && currentRouteName !== 'WorkerTasks' && currentRouteName !== 'TaskDetail' && (
         <GlobalPageTitle
           isDarkTheme={isDarkTheme}
           title={titleByRoute[currentRouteName] ?? currentRouteName}

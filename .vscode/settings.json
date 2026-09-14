@@ -2,8 +2,5 @@
   "cSpell.words": [
     "Pressable"
   ],
-  "files.associations": {
-    "supabase/migrations/*.sql": "plaintext"
-  },
   "mssql.intelliSense.enable": false
 }

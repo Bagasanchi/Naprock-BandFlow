@@ -34,6 +34,9 @@ yarn-error.*
 .env
 .env*.local
 
+# SQLite server data
+server/data/
+
 # typescript
 *.tsbuildinfo
 

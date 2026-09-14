@@ -1,25 +1,60 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import type { WorkItem } from '../lib/work';
+import { getWorkers } from '../lib/api';
 
 type CreateWorkProps = {
   isDarkTheme: boolean;
+  onPublishWork: (work: Array<Omit<WorkItem, 'id' | 'status' | 'progress' | 'due'>>) => void;
 };
 
 const priorities = ['Low', 'Medium', 'High'];
-const workers = [
-  { id: 'alex', initials: 'AR', name: 'Alex R.', detail: 'Design and product' },
-  { id: 'sam', initials: 'ST', name: 'Sam T.', detail: 'Engineering and APIs' },
-  { id: 'jordan', initials: 'JL', name: 'Jordan L.', detail: 'Research and UX' },
-  { id: 'chris', initials: 'CM', name: 'Chris M.', detail: 'Data and systems' },
-];
+type WorkerProfile = {
+  id: string;
+  initials: string;
+  name: string;
+  detail: string;
+};
 
-export default function CreateWork({ isDarkTheme }: CreateWorkProps) {
+const getInitials = (name: string) => name
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((part) => part[0])
+  .join('')
+  .slice(0, 2)
+  .toUpperCase();
+
+export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkProps) {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [projectMode, setProjectMode] = useState<'solo' | 'group'>('solo');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState('');
   const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [availableWorkers, setAvailableWorkers] = useState<WorkerProfile[]>([]);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
+  const [workerLoadError, setWorkerLoadError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadWorkers = async () => {
+      try {
+        const workers = await getWorkers();
+        if (!isMounted) return;
+        setAvailableWorkers(workers.map((worker) => ({ id: worker.id, name: worker.name, initials: getInitials(worker.name), detail: 'Workspace worker' })));
+        setIsLoadingWorkers(false);
+      } catch (error) {
+        if (isMounted) setWorkerLoadError(error instanceof Error ? error.message : 'Worker accounts could not be loaded.');
+        setIsLoadingWorkers(false);
+      }
+    };
+
+    void loadWorkers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const addSubtask = () => {
     const trimmedSubtask = subtaskDraft.trim();
@@ -43,6 +78,17 @@ export default function CreateWork({ isDarkTheme }: CreateWorkProps) {
     if (mode === 'solo' && selectedWorkers.length > 1) {
       setSelectedWorkers(selectedWorkers.slice(0, 1));
     }
+  };
+
+  const publishWork = () => {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || selectedWorkers.length === 0) return;
+
+    onPublishWork(selectedWorkers.map((workerId) => ({
+      title: trimmedTitle,
+      priority: priority as WorkItem['priority'],
+      assignedTo: availableWorkers.find((worker) => worker.id === workerId)?.name ?? 'Workspace member',
+    })));
   };
 
   const theme = isDarkTheme
@@ -108,8 +154,11 @@ export default function CreateWork({ isDarkTheme }: CreateWorkProps) {
           <Text style={[styles.selectionHint, { color: theme.muted }]}>
             {projectMode === 'solo' ? 'Choose one worker' : 'Choose everyone who should collaborate'}
           </Text>
+          <Text style={[styles.workerCount, { color: theme.accent }]}>
+            {isLoadingWorkers ? 'Loading workers…' : `${availableWorkers.length} worker${availableWorkers.length === 1 ? '' : 's'} available`}
+          </Text>
           <View style={styles.workerList}>
-            {workers.map((worker) => {
+            {availableWorkers.map((worker) => {
               const isSelected = selectedWorkers.includes(worker.id);
               return (
                 <Pressable
@@ -129,6 +178,23 @@ export default function CreateWork({ isDarkTheme }: CreateWorkProps) {
               );
             })}
           </View>
+          {!isLoadingWorkers && availableWorkers.length === 0 && (
+            <View style={[styles.emptyWorkers, { borderColor: theme.border, backgroundColor: theme.input }]}>
+              <Text style={[styles.emptyWorkersTitle, { color: theme.title }]}>{workerLoadError ? 'Worker accounts could not be loaded' : 'No worker accounts found'}</Text>
+              <Text style={[styles.emptyWorkersBody, { color: theme.muted }]}>{workerLoadError || 'Only people with a worker account can be assigned work.'}</Text>
+            </View>
+          )}
+          {selectedWorkers.length > 0 && (
+            <View style={[styles.selectedWorkerBanner, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+              <Text style={[styles.selectedWorkerLabel, { color: theme.accent }]}>ASSIGNED WORKER</Text>
+              <Text style={[styles.selectedWorkerName, { color: theme.title }]}>
+                {availableWorkers
+                  .filter((worker) => selectedWorkers.includes(worker.id))
+                  .map((worker) => worker.name)
+                  .join(', ')}
+              </Text>
+            </View>
+          )}
 
           <Text style={[styles.sectionLabel, { color: theme.body }]}>SUBTASKS</Text>
           <View style={[styles.subtaskPreview, { borderColor: theme.border }]}>
@@ -155,7 +221,11 @@ export default function CreateWork({ isDarkTheme }: CreateWorkProps) {
           </View>
         </View>
 
-        <Pressable style={[styles.createButton, { backgroundColor: theme.accent }]}>
+        <Pressable
+          onPress={publishWork}
+          disabled={!title.trim() || selectedWorkers.length === 0}
+          style={[styles.createButton, { backgroundColor: theme.accent, opacity: title.trim() && selectedWorkers.length > 0 ? 1 : 0.5 }]}
+        >
           <Text style={[styles.createButtonText, { color: theme.accentText }]}>Publish Work  →</Text>
         </Pressable>
         <Text style={[styles.footerNote, { color: theme.muted }]}>You can refine the details after assigning the work.</Text>
@@ -183,7 +253,11 @@ const styles = StyleSheet.create({
   modeButton: { flex: 1, minHeight: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   modeText: { fontSize: 12, fontWeight: '800' },
   selectionHint: { fontSize: 11, marginBottom: 9 },
+  workerCount: { fontSize: 11, fontWeight: '800', marginBottom: 9 },
   workerList: { gap: 8, marginBottom: 20 },
+  emptyWorkers: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 20 },
+  emptyWorkersTitle: { fontSize: 13, fontWeight: '900' },
+  emptyWorkersBody: { fontSize: 11, lineHeight: 16, marginTop: 4 },
   workerRow: { borderWidth: 1, borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'center' },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
@@ -192,6 +266,9 @@ const styles = StyleSheet.create({
   assignmentHint: { fontSize: 11, marginTop: 2 },
   selectionMark: { width: 20, height: 20, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   selectionCheck: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  selectedWorkerBanner: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: -8, marginBottom: 20 },
+  selectedWorkerLabel: { fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  selectedWorkerName: { fontSize: 15, fontWeight: '900', marginTop: 3 },
   subtaskPreview: { borderWidth: 1, borderRadius: 12, padding: 12 },
   previewRow: { flexDirection: 'row', alignItems: 'center', minHeight: 31, gap: 9 },
   previewBox: { width: 16, height: 16, borderWidth: 1, borderRadius: 4 },
