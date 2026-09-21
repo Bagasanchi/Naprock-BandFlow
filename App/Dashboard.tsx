@@ -8,11 +8,12 @@ type DashboardProps = {
   onCreateWork: () => void;
   onSeeProgress: () => void;
   onAssignWork: () => void;
+  onManageWorkers: () => void;
   workItems: WorkItem[];
   userName: string;
 };
 
-export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, userName, workItems }: DashboardProps) {
+export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, userName, workItems }: DashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#170827', surface: 'rgba(38, 15, 59, 0.92)', border: 'rgba(232, 208, 255, 0.18)',
@@ -43,6 +44,7 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
   const actions = [
     { icon: '✏️', title: 'Create Work', detail: 'Define new tasks or projects', onPress: onCreateWork },
     { icon: '📈', title: 'See Work Progress', detail: 'Sprint analytics and team velocity', onPress: onSeeProgress },
+    { icon: '👥', title: 'Manage Workers', detail: 'View worker info and edit availability', onPress: onManageWorkers },
   ];
 
   return (

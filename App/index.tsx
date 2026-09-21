@@ -16,6 +16,7 @@ import WorkerDashboard from './WorkerDashboard';
 import WorkerTasks from './WorkerTasks';
 import BossProgress from './BossProgress';
 import AssignWork from './AssignWork';
+import WorkerDirectory from './WorkerDirectory';
 import type { WorkItem } from '../lib/work';
 import * as api from '../lib/api';
 
@@ -38,6 +39,7 @@ type RootStackParamList = {
   WorkerTasks: { userName?: string } | undefined;
   BossProgress: { userName?: string } | undefined;
   AssignWork: { userName?: string } | undefined;
+  WorkerDirectory: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -132,6 +134,7 @@ export default function App() {
     WorkerTasks: 'All Tasks',
     BossProgress: 'Work Progress',
     AssignWork: 'Assign Work',
+    WorkerDirectory: 'Workers',
   };
 
   return (
@@ -216,9 +219,13 @@ export default function App() {
                 onCreateWork={() => navigation.navigate('CreateWork')}
                 onSeeProgress={() => navigation.navigate('BossProgress', { userName: route.params?.userName })}
                 onAssignWork={() => navigation.navigate('AssignWork', { userName: route.params?.userName })}
+                onManageWorkers={() => navigation.navigate('WorkerDirectory')}
                 workItems={workItems}
               />
             )}
+          </Stack.Screen>
+          <Stack.Screen name="WorkerDirectory">
+            {({ navigation }) => <WorkerDirectory isDarkTheme={isDarkTheme} onBack={() => navigation.goBack()} />}
           </Stack.Screen>
           <Stack.Screen name="AssignWork">
             {({ navigation, route }) => (

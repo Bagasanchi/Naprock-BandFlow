@@ -5,7 +5,8 @@ const apiUrl = (process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8787').repl
 const tokenKey = 'bandflow_api_token';
 
 export type ApiUser = { id: string; email: string; fullName: string; role: 'worker' | 'boss' };
-export type ApiWorker = { id: string; name: string };
+export type WorkerStatus = 'active' | 'away' | 'offline';
+export type ApiWorker = { id: string; name: string; email?: string; role?: 'worker' | 'boss'; status?: WorkerStatus; created_at?: string };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await AsyncStorage.getItem(tokenKey);
@@ -34,6 +35,10 @@ export async function logout() {
 
 export async function getWorkers() {
   return request<ApiWorker[]>('/workers');
+}
+
+export async function updateWorkerStatus(workerId: string, status: WorkerStatus) {
+  return request<{ id: string; status: WorkerStatus }>(`/workers/${workerId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
 export async function getWork() {

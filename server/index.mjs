@@ -5,7 +5,7 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypt
 import { DatabaseSync } from 'node:sqlite';
 
 const port = Number(process.env.PORT ?? 8787);
-const databasePath = process.env.DATABASE_PATH ?? join(process.cwd(), 'data', 'bandflow.sqlite');
+const databasePath = process.env.DATABASE_PATH ?? join(process.cwd(), 'naprock', 'bandflow.db');
 mkdirSync(dirname(databasePath), { recursive: true });
 const db = new DatabaseSync(databasePath);
 
@@ -18,6 +18,7 @@ db.exec(`
     password_hash TEXT NOT NULL,
     full_name TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('worker', 'boss')) DEFAULT 'worker',
+    status TEXT NOT NULL CHECK (status IN ('active', 'away', 'offline')) DEFAULT 'active',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS sessions (
@@ -37,6 +38,11 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+const userColumns = db.prepare('PRAGMA table_info(users)').all().map((column) => column.name);
+if (!userColumns.includes('status')) {
+  db.exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'away', 'offline'))");
+}
 
 const json = (response, status, body) => {
   response.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' });
@@ -95,9 +101,23 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === 'GET' && url.pathname === '/workers') {
-      if (!requireUser(request, response)) return;
-      const workers = db.prepare("SELECT id, full_name AS name FROM users WHERE role = 'worker' ORDER BY full_name").all();
+      const user = requireUser(request, response);
+      if (!user) return;
+      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can view worker details.' });
+      const workers = db.prepare("SELECT id, full_name AS name, email, role, status, created_at FROM users WHERE role = 'worker' ORDER BY full_name").all();
       return json(response, 200, workers);
+    }
+
+    if (request.method === 'PATCH' && url.pathname.startsWith('/workers/')) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can edit worker status.' });
+      const workerId = url.pathname.slice('/workers/'.length);
+      const { status } = await readBody(request);
+      if (!['active', 'away', 'offline'].includes(status)) return json(response, 400, { error: 'Status must be active, away, or offline.' });
+      const result = db.prepare("UPDATE users SET status = ? WHERE id = ? AND role = 'worker'").run(status, workerId);
+      if (!result.changes) return json(response, 404, { error: 'Worker not found.' });
+      return json(response, 200, { id: workerId, status });
     }
 
     if (request.method === 'GET' && url.pathname === '/work') {
