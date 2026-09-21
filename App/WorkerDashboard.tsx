@@ -5,7 +5,7 @@ import type { WorkItem } from '../lib/work';
 type WorkerDashboardProps = {
   isDarkTheme: boolean;
   onLogout: () => void;
-  onOpenTask: (task: { title: string; priority: string; due: string; progress: number }) => void;
+  onOpenTask: (task: { id: string; title: string; priority: string; due: string; progress: number; status: WorkItem['status']; subtasks: string[] }) => void;
   onViewAll: () => void;
   workItems: WorkItem[];
   userName: string;

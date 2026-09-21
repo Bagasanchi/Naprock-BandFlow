@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -28,8 +28,10 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const loginInFlight = useRef(false);
 
   const handleLogin = async () => {
+    if (loginInFlight.current) return;
     setErrorMessage('');
 
     if (!email.trim() || !password) {
@@ -37,13 +39,16 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
       return;
     }
 
+    loginInFlight.current = true;
     setIsSubmitting(true);
     try {
       const user = await login(email.trim(), password);
       setIsSubmitting(false);
+      loginInFlight.current = false;
       onLogin(user.role, user.fullName);
     } catch (error) {
       setIsSubmitting(false);
+      loginInFlight.current = false;
       setErrorMessage(error instanceof Error ? error.message : 'Unable to sign in.');
     }
   };
@@ -130,6 +135,7 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
               placeholder="you@example.com"
               placeholderTextColor="#8B96A8"
               autoCapitalize="none"
+              autoComplete="email"
               keyboardType="email-address"
               textContentType="emailAddress"
               style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.inputText }]}
@@ -142,7 +148,13 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
               placeholder="••••••••"
               placeholderTextColor="#8B96A8"
               secureTextEntry
+              autoComplete="password"
+              returnKeyType="done"
               textContentType="password"
+              onSubmitEditing={() => void handleLogin()}
+              onEndEditing={() => {
+                if (email.trim() && password) void handleLogin();
+              }}
               style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.inputText }]}
             />
 

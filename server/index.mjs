@@ -33,6 +33,7 @@ db.exec(`
     status TEXT NOT NULL CHECK (status IN ('In Progress', 'Review', 'Done')) DEFAULT 'In Progress',
     progress INTEGER NOT NULL DEFAULT 0,
     due TEXT NOT NULL DEFAULT 'Unscheduled',
+    subtasks TEXT NOT NULL DEFAULT '[]',
     assigned_to TEXT NOT NULL REFERENCES users(id),
     created_by TEXT NOT NULL REFERENCES users(id),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -42,6 +43,10 @@ db.exec(`
 const userColumns = db.prepare('PRAGMA table_info(users)').all().map((column) => column.name);
 if (!userColumns.includes('status')) {
   db.exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'away', 'offline'))");
+}
+const workColumns = db.prepare('PRAGMA table_info(work_items)').all().map((column) => column.name);
+if (!workColumns.includes('subtasks')) {
+  db.exec("ALTER TABLE work_items ADD COLUMN subtasks TEXT NOT NULL DEFAULT '[]'");
 }
 
 const json = (response, status, body) => {
@@ -124,21 +129,35 @@ const server = createServer(async (request, response) => {
       const user = requireUser(request, response);
       if (!user) return;
       const rows = user.role === 'boss'
-        ? db.prepare(`SELECT work_items.id, work_items.title, work_items.priority, work_items.status, work_items.progress, work_items.due, users.full_name AS assigned_to FROM work_items JOIN users ON users.id = work_items.assigned_to ORDER BY work_items.created_at DESC`).all()
-        : db.prepare(`SELECT work_items.id, work_items.title, work_items.priority, work_items.status, work_items.progress, work_items.due, users.full_name AS assigned_to FROM work_items JOIN users ON users.id = work_items.assigned_to WHERE work_items.assigned_to = ? ORDER BY work_items.created_at DESC`).all(user.id);
+        ? db.prepare(`SELECT work_items.id, work_items.title, work_items.priority, work_items.status, work_items.progress, work_items.due, work_items.subtasks, users.full_name AS assigned_to FROM work_items JOIN users ON users.id = work_items.assigned_to ORDER BY work_items.created_at DESC`).all()
+        : db.prepare(`SELECT work_items.id, work_items.title, work_items.priority, work_items.status, work_items.progress, work_items.due, work_items.subtasks, users.full_name AS assigned_to FROM work_items JOIN users ON users.id = work_items.assigned_to WHERE work_items.assigned_to = ? ORDER BY work_items.created_at DESC`).all(user.id);
       return json(response, 200, rows);
+    }
+
+    if (request.method === 'PATCH' && url.pathname.startsWith('/work/')) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      const workId = url.pathname.slice('/work/'.length);
+      const { status } = await readBody(request);
+      if (!['In Progress', 'Review', 'Done'].includes(status)) return json(response, 400, { error: 'Invalid work status.' });
+      const work = db.prepare('SELECT id, assigned_to FROM work_items WHERE id = ?').get(workId);
+      if (!work) return json(response, 404, { error: 'Work item not found.' });
+      if (user.role !== 'boss' && work.assigned_to !== user.id) return json(response, 403, { error: 'You can only update work assigned to you.' });
+      db.prepare('UPDATE work_items SET status = ?, progress = CASE WHEN ? = \'Done\' THEN 100 ELSE progress END WHERE id = ?').run(status, status, workId);
+      return json(response, 200, { id: workId, status });
     }
 
     if (request.method === 'POST' && url.pathname === '/work') {
       const user = requireUser(request, response);
       if (!user) return;
       if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can assign work.' });
-      const { title, priority = 'Medium', assignedTo } = await readBody(request);
+      const { title, priority = 'Medium', due = 'Unscheduled', subtasks = [], assignedTo } = await readBody(request);
       const worker = db.prepare("SELECT id FROM users WHERE role = 'worker' AND (id = ? OR full_name = ?)").get(assignedTo, assignedTo);
-      if (!title?.trim() || !worker) return json(response, 400, { error: 'A title and valid worker are required.' });
+      if (!title?.trim() || !worker || !Array.isArray(subtasks) || subtasks.some((item) => typeof item !== 'string')) return json(response, 400, { error: 'A title, valid worker, and valid subtasks are required.' });
       const id = randomUUID();
-      db.prepare('INSERT INTO work_items (id, title, priority, assigned_to, created_by) VALUES (?, ?, ?, ?, ?)').run(id, title.trim(), priority, worker.id, user.id);
-      return json(response, 201, { id, title: title.trim(), priority, status: 'In Progress', progress: 0, due: 'Unscheduled', assignedTo: worker.id });
+      const cleanSubtasks = subtasks.map((item) => item.trim()).filter(Boolean);
+      db.prepare('INSERT INTO work_items (id, title, priority, due, subtasks, assigned_to, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, title.trim(), priority, due.trim() || 'Unscheduled', JSON.stringify(cleanSubtasks), worker.id, user.id);
+      return json(response, 201, { id, title: title.trim(), priority, status: 'In Progress', progress: 0, due: due.trim() || 'Unscheduled', subtasks: cleanSubtasks, assignedTo: worker.id });
     }
 
     return json(response, 404, { error: 'Not found.' });

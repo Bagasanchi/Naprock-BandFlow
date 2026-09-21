@@ -1,28 +1,23 @@
 import React, { useState } from 'react';
-import { Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { WorkItem } from '../lib/work';
 
 type TaskDetailProps = {
   isDarkTheme: boolean;
+  workId: string;
   title: string;
   priority: string;
   due: string;
   progress: number;
+  status: WorkItem['status'];
+  subtasks: string[];
   workerName: string;
+  onStatusChanged: (status: WorkItem['status']) => Promise<void>;
 };
 
-const subtasksByTitle: Record<string, string[]> = {
-  'Design system audit': ['Review current components', 'Document consistency issues', 'Compare patterns across screens', 'Share audit recommendations', 'Prepare the final audit summary'],
-  'API integration layer': ['Confirm API requirements', 'Set up the integration structure', 'Implement service connection', 'Test response handling', 'Document the integration'],
-  'Onboarding flow UX': ['Review onboarding steps', 'Map the current user journey', 'Improve first-time user flow', 'Test the updated experience', 'Share UX recommendations'],
-  'Database migration script': ['Review the migration plan', 'Back up existing records', 'Write and test the script', 'Verify migrated records', 'Document the migration result'],
-};
-
-function getSubtasks(title: string) {
-  return subtasksByTitle[title] ?? ['Review the work requirements', 'Break the work into steps', 'Complete the main deliverable', 'Test the completed work', 'Submit the work for review'];
-}
-
-export default function TaskDetail({ isDarkTheme, title, priority, due, progress, workerName }: TaskDetailProps) {
-  const [completedSubtasks, setCompletedSubtasks] = useState<boolean[]>(() => getSubtasks(title).map(() => false));
+export default function TaskDetail({ isDarkTheme, title, priority, due, progress, status, subtasks, workerName, onStatusChanged }: TaskDetailProps) {
+  const [completedSubtasks, setCompletedSubtasks] = useState<boolean[]>(() => subtasks.map(() => false));
+  const [isUpdating, setIsUpdating] = useState(false);
   const theme = isDarkTheme
     ? {
         background: '#07111F',
@@ -34,6 +29,9 @@ export default function TaskDetail({ isDarkTheme, title, priority, due, progress
         progressFill: '#56A7FF',
         surface: 'rgba(11, 22, 39, 0.92)',
         verified: '#7CE1BB',
+        actionText: '#07111F',
+        breakDownBackground: '#2C3B56',
+        breakDownText: '#E3EEFF',
         unverified: '#FF8F8F',
       }
     : {
@@ -46,19 +44,31 @@ export default function TaskDetail({ isDarkTheme, title, priority, due, progress
         progressFill: '#1A67C9',
         surface: '#FFFFFF',
         verified: '#14744E',
+        actionText: '#FFFFFF',
+        breakDownBackground: '#D7E4F5',
+        breakDownText: '#244E7E',
         unverified: '#E84545',
       };
 
   const priorityLabel = priority.toLowerCase() === 'high' ? 'High' : 'Low';
   const priorityColor = priorityLabel === 'High' ? '#E84545' : '#2EAD72';
-  const status = progress >= 100 ? 'Completed' : 'In Progress';
+  const statusLabel = status === 'Done' ? 'Done' : status;
+  const submitStatus = async (nextStatus: WorkItem['status']) => {
+    setIsUpdating(true);
+    try {
+      await onStatusChanged(nextStatus);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <View style={[styles.hero, { backgroundColor: theme.hero, borderColor: theme.border }]}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={[styles.hero, { backgroundColor: theme.hero, borderColor: theme.border }]}>
         <View style={styles.headerTopRow}>
           <Text style={[styles.taskTitle, { color: theme.title }]}>{title}</Text>
-          <Text style={[styles.statusText, { color: theme.title, borderColor: theme.border }]}>{status}</Text>
+          <Text style={[styles.statusText, { color: theme.title, borderColor: theme.border }]}>{statusLabel}</Text>
         </View>
 
         <View style={styles.metaRow}>
@@ -75,9 +85,9 @@ export default function TaskDetail({ isDarkTheme, title, priority, due, progress
           </View>
           <Text style={[styles.progressValue, { color: theme.title }]}>{progress}%</Text>
         </View>
-      </View>
+        </View>
 
-      <View style={[styles.statusBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.statusBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={[styles.statusIcon, { borderColor: theme.border }]}>
           <Text style={styles.statusIconText}>🔒</Text>
         </View>
@@ -86,19 +96,19 @@ export default function TaskDetail({ isDarkTheme, title, priority, due, progress
           <Text style={[styles.statusTitle, { color: theme.title }]}>Band Verified • {workerName} • Just now</Text>
         </View>
         <Text style={[styles.authStatus, { color: theme.verified, borderColor: theme.verified }]}>Verified</Text>
-      </View>
+        </View>
 
-      <View style={[styles.assignedBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.assignedBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.assignedLabel, { color: theme.body }]}>ASSIGNED TO</Text>
         <View style={styles.assignedPerson}>
           <Image source={require('../assets/icon.png')} style={styles.profileImage} resizeMode="contain" />
           <Text style={[styles.assignedName, { color: theme.title }]}>{workerName}</Text>
         </View>
-      </View>
+        </View>
 
-      <View style={[styles.subtasksBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={[styles.subtasksBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.subtasksTitle, { color: theme.title }]}>SUBTASKS</Text>
-        {getSubtasks(title).map((subtask, index) => (
+        {subtasks.map((subtask, index) => (
           <Pressable
             key={subtask}
             onPress={() => setCompletedSubtasks((current) => current.map((completed, itemIndex) => itemIndex === index ? !completed : completed))}
@@ -110,17 +120,30 @@ export default function TaskDetail({ isDarkTheme, title, priority, due, progress
             <Text style={[styles.subtaskText, { color: theme.body }, completedSubtasks[index] && styles.completedSubtask]}>{subtask}</Text>
           </Pressable>
         ))}
-      </View>
+        {subtasks.length === 0 && <Text style={[styles.subtaskText, { color: theme.body }]}>No subtasks were added.</Text>}
+        </View>
 
-      <Pressable style={styles.breakDownButton}>
-        <Text style={styles.breakDownText}>🔧  Break Down</Text>
-      </Pressable>
+        <Pressable style={[styles.breakDownButton, { backgroundColor: theme.breakDownBackground }]}>
+          <Text style={[styles.breakDownText, { color: theme.breakDownText }]}>🔧  Break Down</Text>
+        </Pressable>
+        {status !== 'Done' && (
+          <View style={styles.actionRow}>
+            <Pressable disabled={isUpdating} onPress={() => void submitStatus('Review')} style={[styles.actionButton, { backgroundColor: theme.progressFill }]}>
+              <Text style={[styles.actionText, { color: theme.actionText }]}>{status === 'Review' ? 'Submitted for review' : 'Submit for review'}</Text>
+            </Pressable>
+            <Pressable disabled={isUpdating} onPress={() => void submitStatus('Done')} style={[styles.actionButton, { backgroundColor: theme.verified }]}>
+              <Text style={[styles.actionText, { color: theme.actionText }]}>Mark as done</Text>
+            </Pressable>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
+  container: { flexGrow: 1, paddingBottom: 18 },
   hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 90, paddingBottom: 20 },
   headerTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   taskTitle: { flex: 1, fontSize: 22, lineHeight: 28, fontWeight: '900' },
@@ -145,13 +168,16 @@ const styles = StyleSheet.create({
   assignedPerson: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   profileImage: { width: 42, height: 42, borderRadius: 21 },
   assignedName: { fontSize: 15, fontWeight: '800' },
-  subtasksBox: { flex: 1, marginHorizontal: 20, marginTop: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16, padding: 16 },
+  subtasksBox: { marginHorizontal: 20, marginTop: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16, padding: 16 },
   subtasksTitle: { fontSize: 14, fontWeight: '900', letterSpacing: 0.8, marginBottom: 12 },
   subtaskRow: { flexDirection: 'row', alignItems: 'center', minHeight: 38, gap: 10 },
   checkbox: { width: 20, height: 20, borderWidth: 1, borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
   checkmark: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   subtaskText: { flex: 1, fontSize: 13, lineHeight: 18 },
   completedSubtask: { textDecorationLine: 'line-through', opacity: 0.65 },
-  breakDownButton: { marginHorizontal: 20, marginTop: 16, marginBottom: 18, minHeight: 48, borderRadius: 14, backgroundColor: '#AAB2BC', alignItems: 'center', justifyContent: 'center' },
-  breakDownText: { color: '#FFFFFF', fontSize: 14 },
+  breakDownButton: { marginHorizontal: 20, marginTop: 16, marginBottom: 18, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  breakDownText: { fontSize: 14, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 20, marginBottom: 18 },
+  actionButton: { flex: 1, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  actionText: { fontSize: 13, fontWeight: '900', textAlign: 'center' },
 });

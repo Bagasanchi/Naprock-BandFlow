@@ -15,7 +15,7 @@ type WorkerTask = {
 type WorkerTasksProps = {
   isDarkTheme: boolean;
   onBack: () => void;
-  onOpenTask: (task: { title: string; priority: string; due: string; progress: number }) => void;
+  onOpenTask: (task: { id: string; title: string; priority: string; due: string; progress: number; status: WorkItem['status']; subtasks: string[] }) => void;
   workItems: WorkItem[];
   userName: string;
 };

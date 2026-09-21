@@ -42,10 +42,24 @@ export async function updateWorkerStatus(workerId: string, status: WorkerStatus)
 }
 
 export async function getWork() {
-  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; assigned_to: string }>>('/work');
-  return rows.map((row) => ({ ...row, assignedTo: row.assigned_to }));
+  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; subtasks?: string; assigned_to: string }>>('/work');
+  return rows.map((row) => ({ ...row, assignedTo: row.assigned_to, subtasks: parseSubtasks(row.subtasks) }));
 }
 
-export async function createWork(work: { title: string; priority: WorkItem['priority']; assignedTo: string }) {
+function parseSubtasks(value?: string) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function updateWorkStatus(workId: string, status: WorkItem['status']) {
+  return request<{ id: string; status: WorkItem['status'] }>(`/work/${workId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+export async function createWork(work: { title: string; priority: WorkItem['priority']; due?: string; assignedTo: string }) {
   return request('/work', { method: 'POST', body: JSON.stringify(work) });
 }

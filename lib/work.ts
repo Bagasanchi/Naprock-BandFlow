@@ -6,4 +6,5 @@ export type WorkItem = {
   due: string;
   progress: number;
   assignedTo: string;
+  subtasks: string[];
 };

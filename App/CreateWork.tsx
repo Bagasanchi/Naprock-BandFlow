@@ -1,14 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import type { WorkItem } from '../lib/work';
 import { getWorkers } from '../lib/api';
 
 type CreateWorkProps = {
   isDarkTheme: boolean;
-  onPublishWork: (work: Array<Omit<WorkItem, 'id' | 'status' | 'progress' | 'due'>>) => void;
+  onPublishWork: (work: Array<Omit<WorkItem, 'id' | 'status' | 'progress'>>) => void;
 };
 
 const priorities = ['Low', 'Medium', 'High'];
+const formatDateForStorage = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const formatDateForDisplay = (date: Date) => date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
 type WorkerProfile = {
   id: string;
   initials: string;
@@ -27,6 +36,8 @@ const getInitials = (name: string) => name
 export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkProps) {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState('Medium');
+  const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [projectMode, setProjectMode] = useState<'solo' | 'group'>('solo');
   const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState('');
@@ -87,8 +98,15 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
     onPublishWork(selectedWorkers.map((workerId) => ({
       title: trimmedTitle,
       priority: priority as WorkItem['priority'],
+      due: dueDate ? formatDateForStorage(dueDate) : 'Unscheduled',
+      subtasks,
       assignedTo: availableWorkers.find((worker) => worker.id === workerId)?.name ?? 'Workspace member',
     })));
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) setDueDate(selectedDate);
   };
 
   const theme = isDarkTheme
@@ -119,6 +137,38 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
             placeholderTextColor={theme.muted}
             style={[styles.titleInput, { color: theme.title, backgroundColor: theme.input, borderColor: theme.border }]}
           />
+
+          <Text style={[styles.sectionLabel, { color: theme.body }]}>DUE WHEN?</Text>
+          <View style={styles.dateRow}>
+            <Pressable
+              onPress={() => setShowDatePicker(true)}
+              style={[styles.dateButton, { backgroundColor: theme.input, borderColor: theme.border }]}
+            >
+              <Text style={[styles.dateButtonText, { color: dueDate ? theme.title : theme.muted }]}>
+                {dueDate ? formatDateForDisplay(dueDate) : 'Choose a due date'}
+              </Text>
+              <Text style={[styles.calendarIcon, { color: theme.accent }]}>▣</Text>
+            </Pressable>
+            {dueDate && (
+              <Pressable onPress={() => setDueDate(null)} style={[styles.clearDateButton, { borderColor: theme.border }]}>
+                <Text style={[styles.clearDateText, { color: theme.body }]}>Clear</Text>
+              </Pressable>
+            )}
+          </View>
+          {showDatePicker && (
+            <View style={[styles.datePickerBox, { borderColor: theme.border, backgroundColor: theme.input }]}>
+              <DateTimePicker
+                value={dueDate ?? new Date()}
+                mode="date"
+                display="default"
+                minimumDate={new Date()}
+                onChange={handleDateChange}
+              />
+              <Pressable onPress={() => setShowDatePicker(false)}>
+                <Text style={[styles.doneDateText, { color: theme.accent }]}>Done</Text>
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.labelRow}>
             <Text style={[styles.sectionLabel, { color: theme.body }]}>PRIORITY</Text>
@@ -243,6 +293,14 @@ const styles = StyleSheet.create({
   formCard: { marginHorizontal: 20, marginTop: 18, borderWidth: 1, borderRadius: 18, padding: 16 },
   sectionLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 0.9, marginBottom: 8 },
   titleInput: { borderWidth: 1, borderRadius: 12, minHeight: 50, paddingHorizontal: 14, fontSize: 15, marginBottom: 20 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
+  dateButton: { flex: 1, minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dateButtonText: { fontSize: 15 },
+  calendarIcon: { fontSize: 20, fontWeight: '900' },
+  clearDateButton: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  clearDateText: { fontSize: 12, fontWeight: '800' },
+  datePickerBox: { borderWidth: 1, borderRadius: 12, padding: 10, alignItems: 'center', marginTop: -8, marginBottom: 20 },
+  doneDateText: { fontSize: 13, fontWeight: '900', paddingVertical: 6 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   fieldHint: { fontSize: 11, marginBottom: 8 },
   priorityRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },

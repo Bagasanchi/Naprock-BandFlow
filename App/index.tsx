@@ -27,10 +27,13 @@ type RootStackParamList = {
   BandAuth: undefined;
   BandAuthenticatorApp: undefined;
   TaskDetail: {
+    id: string;
     title: string;
     priority: string;
     due: string;
     progress: number;
+    status: WorkItem['status'];
+    subtasks: string[];
     workerName: string;
   };
   CreateWork: undefined;
@@ -68,11 +71,12 @@ function GlobalThemeToggle({ isDarkTheme, onToggleTheme }: GlobalThemeToggleProp
           styles.globalThemeToggle,
           {
             top: insets.top + 8,
-            backgroundColor: isDarkTheme ? 'rgba(255, 255, 255, 0.08)' : '#DDEBFC',
+            backgroundColor: isDarkTheme ? '#1B2A42' : '#FFFFFF',
+            borderColor: isDarkTheme ? '#405574' : '#BFD1E8',
           },
         ]}
       >
-        <Text style={[styles.globalThemeToggleText, { color: isDarkTheme ? '#E3EEFF' : '#163E6D' }]}>
+        <Text style={[styles.globalThemeToggleText, { color: isDarkTheme ? '#F4F8FF' : '#163E6D' }]}>
           {isDarkTheme ? 'Light theme' : 'Dark theme'}
         </Text>
       </Pressable>
@@ -287,14 +291,22 @@ export default function App() {
             )}
           </Stack.Screen>
           <Stack.Screen name="TaskDetail">
-            {({ route }) => (
+            {({ navigation, route }) => (
               <TaskDetail
+                                workId={route.params.id}
+                                status={route.params.status}
                 isDarkTheme={isDarkTheme}
                 title={route.params.title}
                 priority={route.params.priority}
                 due={route.params.due}
                 progress={route.params.progress}
+                subtasks={route.params.subtasks}
                 workerName={route.params.workerName}
+                onStatusChanged={async (status) => {
+                  await api.updateWorkStatus(route.params.id, status);
+                  await refreshWork();
+                  navigation.goBack();
+                }}
               />
             )}
           </Stack.Screen>
@@ -319,14 +331,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     zIndex: 1000,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    minHeight: 38,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 4,
   },
   globalThemeToggleText: {
     fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    fontWeight: '800',
+    letterSpacing: 0,
   },
   globalPageTitle: {
     position: 'absolute',
