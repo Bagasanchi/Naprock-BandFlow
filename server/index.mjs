@@ -50,7 +50,7 @@ if (!workColumns.includes('subtasks')) {
 }
 
 const json = (response, status, body) => {
-  response.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' });
+  response.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS' });
   response.end(JSON.stringify(body));
 };
 const readBody = async (request) => {
@@ -145,6 +145,16 @@ const server = createServer(async (request, response) => {
       if (user.role !== 'boss' && work.assigned_to !== user.id) return json(response, 403, { error: 'You can only update work assigned to you.' });
       db.prepare('UPDATE work_items SET status = ?, progress = CASE WHEN ? = \'Done\' THEN 100 ELSE progress END WHERE id = ?').run(status, status, workId);
       return json(response, 200, { id: workId, status });
+    }
+
+    if (request.method === 'DELETE' && url.pathname.startsWith('/work/')) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can delete work.' });
+      const workId = url.pathname.slice('/work/'.length);
+      const result = db.prepare('DELETE FROM work_items WHERE id = ?').run(workId);
+      if (!result.changes) return json(response, 404, { error: 'Work item not found.' });
+      return json(response, 200, { id: workId });
     }
 
     if (request.method === 'POST' && url.pathname === '/work') {

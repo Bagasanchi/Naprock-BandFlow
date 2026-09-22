@@ -32,6 +32,7 @@ The API provides:
 - `GET /work`
 - `POST /work`
 - `PATCH /work/:id` (assigned worker or boss; status: `In Progress`, `Review`, or `Done`)
+- `DELETE /work/:id` (boss only)
 
 New signups are workers by default. To create the first boss account, insert one directly on the Pi after creating the account:
 

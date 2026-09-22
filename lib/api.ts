@@ -60,6 +60,10 @@ export async function updateWorkStatus(workId: string, status: WorkItem['status'
   return request<{ id: string; status: WorkItem['status'] }>(`/work/${workId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
+export async function deleteWork(workId: string) {
+  return request<{ id: string }>(`/work/${workId}`, { method: 'DELETE' });
+}
+
 export async function createWork(work: { title: string; priority: WorkItem['priority']; due?: string; assignedTo: string }) {
   return request('/work', { method: 'POST', body: JSON.stringify(work) });
 }

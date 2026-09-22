@@ -23,7 +23,7 @@ type WorkerTasksProps = {
 const filters = ['All', 'Active', 'Done'];
 
 export default function WorkerTasks({ isDarkTheme, onBack, onOpenTask, userName, workItems }: WorkerTasksProps) {
-  const [selectedFilter, setSelectedFilter] = useState('All');
+  const [selectedFilter, setSelectedFilter] = useState('Active');
   const theme = isDarkTheme
     ? {
         background: '#07111F', surface: '#0D1D31', surfaceRaised: '#122A45', border: 'rgba(161, 182, 214, 0.2)',

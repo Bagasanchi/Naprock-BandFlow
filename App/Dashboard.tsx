@@ -1,5 +1,5 @@
-import React from 'react';
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
 
 type DashboardProps = {
@@ -9,11 +9,13 @@ type DashboardProps = {
   onSeeProgress: () => void;
   onAssignWork: () => void;
   onManageWorkers: () => void;
+  onDeleteWork: (workId: string) => Promise<void>;
   workItems: WorkItem[];
   userName: string;
 };
 
-export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, userName, workItems }: DashboardProps) {
+export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, onDeleteWork, userName, workItems }: DashboardProps) {
+  const [showCompleted, setShowCompleted] = useState(false);
   const theme = isDarkTheme
     ? {
         background: '#170827', surface: 'rgba(38, 15, 59, 0.92)', border: 'rgba(232, 208, 255, 0.18)',
@@ -41,6 +43,7 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
     { icon: '⚙️', value: String(workItems.filter((item) => item.status === 'In Progress').length), label: 'In Progress' },
     { icon: '🏁', value: String(workItems.filter((item) => item.status === 'Done').length), label: 'Done' },
   ];
+  const visibleWorkItems = showCompleted ? workItems : workItems.filter((item) => item.status !== 'Done');
   const actions = [
     { icon: '✏️', title: 'Create Work', detail: 'Define new tasks or projects', onPress: onCreateWork },
     { icon: '📈', title: 'See Work Progress', detail: 'Sprint analytics and team velocity', onPress: onSeeProgress },
@@ -99,19 +102,41 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
           </Pressable>
 
           <View style={[styles.teamCard, { backgroundColor: theme.surface, borderColor: theme.actionBorder }]}>
-            <Text style={[styles.teamTitle, { color: theme.title }]}>Team Overview</Text>
-            {workItems.length === 0 && <Text style={[styles.emptyText, { color: theme.body }]}>No work has been assigned yet.</Text>}
-            {workItems.map((item, index) => {
+            <View style={styles.teamHeader}>
+              <View style={styles.teamHeaderCopy}>
+                <Text style={[styles.teamTitle, { color: theme.title }]}>Team Overview</Text>
+                <Text style={[styles.teamSubtitle, { color: theme.body }]}>{showCompleted ? 'All assigned work' : 'Active work only'}</Text>
+              </View>
+              <Pressable
+                onPress={() => setShowCompleted((current) => !current)}
+                style={[styles.completedToggle, { borderColor: theme.actionBorder, backgroundColor: showCompleted ? theme.accentSoft : 'transparent' }]}
+              >
+                <Text style={[styles.completedToggleText, { color: theme.accent }]}>{showCompleted ? 'Hide completed' : `Show completed (${workItems.filter((item) => item.status === 'Done').length})`}</Text>
+              </Pressable>
+            </View>
+            {visibleWorkItems.length === 0 && <Text style={[styles.emptyText, { color: theme.body }]}>{workItems.length === 0 ? 'No work has been assigned yet.' : 'All assigned work is completed.'}</Text>}
+            {visibleWorkItems.map((item, index) => {
               const tone = item.status === 'Done' ? 'done' : item.status === 'Review' ? 'review' : 'progress';
               const status = statusTheme[tone];
               return (
-                <View key={item.id} style={[styles.teamRow, index !== workItems.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: 1 }]}>
+                <View key={item.id} style={[styles.teamRow, index !== visibleWorkItems.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: 1 }]}>
                   <View style={[styles.avatar, { backgroundColor: theme.avatar }]}><Text style={styles.avatarText}>{item.assignedTo.split(' ').map((part) => part[0]).join('').slice(0, 2)}</Text></View>
                   <View style={styles.taskCopy}>
                     <Text style={[styles.taskTitle, { color: theme.title }]} numberOfLines={1}>{item.title}</Text>
                     <Text style={[styles.taskMember, { color: theme.body }]}>{item.assignedTo}</Text>
                   </View>
                   <View style={[styles.statusChip, { backgroundColor: status.backgroundColor }]}><Text style={[styles.statusText, { color: status.color }]}>{item.status}</Text></View>
+                  <Pressable
+                    accessibilityLabel={`Delete ${item.title}`}
+                    hitSlop={8}
+                    onPress={() => Alert.alert('Delete task?', `This will permanently delete "${item.title}".`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => void onDeleteWork(item.id) },
+                    ])}
+                    style={[styles.deleteButton, { borderColor: theme.actionBorder }]}
+                  >
+                    <Text style={[styles.deleteButtonText, { color: theme.body }]}>×</Text>
+                  </Pressable>
                 </View>
               );
             })}
@@ -146,7 +171,12 @@ const styles = StyleSheet.create({
   actionTitle: { fontSize: 15, fontWeight: '800' },
   actionDetail: { fontSize: 12, lineHeight: 17, marginTop: 2 },
   teamCard: { borderWidth: 1, borderRadius: 18, marginTop: 4, overflow: 'hidden', paddingHorizontal: 16 },
-  teamTitle: { fontSize: 16, fontWeight: '900', paddingTop: 16, paddingBottom: 10 },
+  teamHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 16, paddingBottom: 10 },
+  teamHeaderCopy: { flex: 1 },
+  teamTitle: { fontSize: 16, fontWeight: '900' },
+  teamSubtitle: { fontSize: 11, fontWeight: '700', marginTop: 3 },
+  completedToggle: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 7 },
+  completedToggleText: { fontSize: 10, fontWeight: '900', textAlign: 'center' },
   teamRow: { flexDirection: 'row', alignItems: 'center', minHeight: 61, gap: 10 },
   avatar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
@@ -155,5 +185,7 @@ const styles = StyleSheet.create({
   taskMember: { fontSize: 12, marginTop: 2 },
   statusChip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   statusText: { fontSize: 11, fontWeight: '800' },
+  deleteButton: { width: 28, height: 28, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  deleteButtonText: { fontSize: 22, lineHeight: 23, fontWeight: '500' },
   emptyText: { fontSize: 13, paddingVertical: 18 },
 });

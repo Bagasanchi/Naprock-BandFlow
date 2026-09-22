@@ -224,6 +224,10 @@ export default function App() {
                 onSeeProgress={() => navigation.navigate('BossProgress', { userName: route.params?.userName })}
                 onAssignWork={() => navigation.navigate('AssignWork', { userName: route.params?.userName })}
                 onManageWorkers={() => navigation.navigate('WorkerDirectory')}
+                onDeleteWork={async (workId) => {
+                  await api.deleteWork(workId);
+                  await refreshWork();
+                }}
                 workItems={workItems}
               />
             )}

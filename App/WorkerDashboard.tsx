@@ -43,6 +43,7 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onV
     { icon: '✅', value: String(workItems.filter((item) => item.status === 'Done').length), label: 'Completed' },
     { icon: '👥', value: workItems.length ? '1' : '0', label: 'Team Size' },
   ];
+  const activeWorkItems = workItems.filter((item) => item.status !== 'Done');
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -81,8 +82,8 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onV
               <Text style={[styles.viewAll, { color: theme.accent }]}>View all</Text>
             </Pressable>
           </View>
-          {workItems.length === 0 && <Text style={[styles.emptyText, { color: theme.body }]}>Your assigned work will appear here.</Text>}
-          {workItems.map((task) => {
+          {activeWorkItems.length === 0 && <Text style={[styles.emptyText, { color: theme.body }]}>{workItems.length === 0 ? 'Your assigned work will appear here.' : 'All assigned work is completed. View all to see completed tasks.'}</Text>}
+          {activeWorkItems.map((task) => {
             const tone = task.status === 'Done' ? 'done' : task.status === 'Review' ? 'review' : 'progress';
             const status = statuses[tone];
             return (
