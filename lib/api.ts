@@ -10,10 +10,21 @@ export type ApiWorker = { id: string; name: string; email?: string; role?: 'work
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await AsyncStorage.getItem(tokenKey);
-  const response = await fetch(`${apiUrl}${path}`, {
+  const requestOptions = {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
-  });
+  };
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}${path}`, requestOptions);
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      response = await fetch(`${apiUrl}${path}`, requestOptions);
+    } catch {
+      throw new Error(`BandFlow server is unavailable at ${apiUrl}. Check that the Pi is running and this device is on the same Wi-Fi.`);
+    }
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
   return body as T;

@@ -1,11 +1,14 @@
 import { createServer } from 'node:http';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 const port = Number(process.env.PORT ?? 8787);
-const databasePath = process.env.DATABASE_PATH ?? join(process.cwd(), 'naprock', 'bandflow.db');
+const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+const databasePath = process.env.DATABASE_PATH ?? process.env.BAND_FLOW_DB_PATH ?? join(projectRoot, 'naprock', 'bandflow.db');
+const bleBridgeUrl = (process.env.BLE_BRIDGE_URL ?? 'http://127.0.0.1:5000/task').replace(/\/$/, '');
 mkdirSync(dirname(databasePath), { recursive: true });
 const db = new DatabaseSync(databasePath);
 
@@ -82,6 +85,20 @@ const requireUser = (request, response) => {
   const user = getUser(request);
   if (!user) json(response, 401, { error: 'Sign in required.' });
   return user;
+};
+const sendTaskToBand = async (text) => {
+  try {
+    const response = await fetch(bleBridgeUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return { sent: false, error: `BLE bridge returned ${response.status}.` };
+    return { sent: true };
+  } catch (error) {
+    return { sent: false, error: error instanceof Error ? error.message : 'BLE bridge unavailable.' };
+  }
 };
 
 const server = createServer(async (request, response) => {
@@ -167,7 +184,9 @@ const server = createServer(async (request, response) => {
       const id = randomUUID();
       const cleanSubtasks = subtasks.map((item) => item.trim()).filter(Boolean);
       db.prepare('INSERT INTO work_items (id, title, priority, due, subtasks, assigned_to, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, title.trim(), priority, due.trim() || 'Unscheduled', JSON.stringify(cleanSubtasks), worker.id, user.id);
-      return json(response, 201, { id, title: title.trim(), priority, status: 'In Progress', progress: 0, due: due.trim() || 'Unscheduled', subtasks: cleanSubtasks, assignedTo: worker.id });
+      const bandText = cleanSubtasks[0] ?? title.trim();
+      const band = await sendTaskToBand(bandText);
+      return json(response, 201, { id, title: title.trim(), priority, status: 'In Progress', progress: 0, due: due.trim() || 'Unscheduled', subtasks: cleanSubtasks, assignedTo: worker.id, band });
     }
 
     return json(response, 404, { error: 'Not found.' });

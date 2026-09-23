@@ -26,6 +26,7 @@
   },
   "scripts": {
     "start": "expo start",
+    "start:clean": "expo start --clear",
     "go": "expo start --go",
     "server": "node server/index.mjs",
     "dev-client": "expo start --dev-client",
