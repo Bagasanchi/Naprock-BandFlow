@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { login } from '../lib/api';
+import { BandFlowLogo } from './BandFlowLogo';
 
 export type LoginRole = 'worker' | 'boss';
 
@@ -137,8 +137,7 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.brandRow}>
-            <Image source={require('../assets/icon.png')} style={styles.brandLogo} resizeMode="contain" />
-            <Text style={[styles.brandText, { color: theme.title }]}>Workspace Pro</Text>
+            <BandFlowLogo height={72} isDarkTheme={isDarkTheme} />
           </View>
 
           <Text style={[styles.title, { color: theme.title }]}>Welcome back</Text>
@@ -241,17 +240,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 18,
-  },
-  brandLogo: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-  },
-  brandText: {
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '900',
-    letterSpacing: 0.2,
   },
   title: {
     fontSize: 32,

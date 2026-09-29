@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { signup } from '../lib/api';
+import { BandFlowLogo } from './BandFlowLogo';
 
 type SignUpProps = {
   isDarkTheme: boolean;
@@ -95,8 +95,7 @@ export default function SignUp({ isDarkTheme, onSignUp, onBackToLogin }: SignUpP
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.brandRow}>
-            <Image source={require('../assets/icon.png')} style={styles.brandLogo} resizeMode="contain" />
-            <Text style={[styles.brandText, { color: theme.title }]}>Workspace Pro</Text>
+            <BandFlowLogo height={72} isDarkTheme={isDarkTheme} />
           </View>
 
           <Text style={[styles.title, { color: theme.title }]}>Create your account</Text>
@@ -196,17 +195,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginBottom: 18,
-  },
-  brandLogo: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-  },
-  brandText: {
-    fontSize: 28,
-    lineHeight: 32,
-    fontWeight: '900',
-    letterSpacing: 0.2,
   },
   title: {
     fontSize: 32,

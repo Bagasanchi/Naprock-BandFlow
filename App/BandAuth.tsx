@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { BandFlowMark } from './BandFlowLogo';
 
 type BandAuthProps = {
   isDarkTheme: boolean;
@@ -44,7 +45,9 @@ export default function BandAuth({ isDarkTheme, onUseAppAsAuthenticator }: BandA
           <Text style={[styles.questionTitle, { color: theme.title }]}>Authenticated with the band yet?</Text>
           <Text style={[styles.questionSubtitle, { color: theme.subtitle }]}>Use your biometric band for secure, passwordless access to your workspace.</Text>
 
-          <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+          <View style={styles.logo}>
+            <BandFlowMark height={92} />
+          </View>
 
           <Pressable style={[styles.primaryButton, { backgroundColor: theme.buttonBg }]}>
             <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Yes, Already Authenticated</Text>
@@ -94,9 +97,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   logo: {
-    width: 92,
-    height: 92,
-    borderRadius: 22,
     alignSelf: 'center',
     marginBottom: 20,
   },

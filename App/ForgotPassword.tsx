@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { requestPasswordReset } from '../lib/api';
+import { BandFlowLogo } from './BandFlowLogo';
 
 type ForgotPasswordProps = {
   isDarkTheme: boolean;
@@ -98,8 +98,7 @@ export default function ForgotPassword({ isDarkTheme, initialEmail = '', onBackT
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]} keyboardShouldPersistTaps="handled">
           <View style={styles.brandRow}>
-            <Image source={require('../assets/icon.png')} style={styles.brandLogo} resizeMode="contain" />
-            <Text style={[styles.brandText, { color: theme.title }]}>Workspace Pro</Text>
+            <BandFlowLogo height={72} isDarkTheme={isDarkTheme} />
           </View>
 
           <Text style={[styles.title, { color: theme.title }]}>{sentTo ? 'Request sent' : 'Forgot password?'}</Text>
@@ -177,8 +176,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 80, paddingBottom: 36, justifyContent: 'flex-start' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  brandLogo: { width: 42, height: 42, borderRadius: 12 },
-  brandText: { fontSize: 28, lineHeight: 32, fontWeight: '900', letterSpacing: 0.2 },
   title: { fontSize: 32, lineHeight: 38, fontWeight: '900', marginBottom: 8 },
   subtitle: { fontSize: 15, lineHeight: 21, marginBottom: 22 },
   card: { borderWidth: 1, borderRadius: 22, padding: 18 },

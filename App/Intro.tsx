@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  Image,
   Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { BandFlowLogo } from './BandFlowLogo';
 
 type IntroProps = {
   isDarkTheme: boolean;
@@ -18,14 +18,12 @@ export default function Intro({ isDarkTheme, onProceed }: IntroProps) {
     ? {
         background: '#07111F',
         title: '#F4F8FF',
-        brand: '#A7CFFF',
         buttonBg: '#56A7FF',
         buttonText: '#04111F',
       }
     : {
         background: '#EEF5FF',
         title: '#14243A',
-        brand: '#1A67C9',
         buttonBg: '#1A67C9',
         buttonText: '#FFFFFF',
       };
@@ -33,8 +31,7 @@ export default function Intro({ isDarkTheme, onProceed }: IntroProps) {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <View style={styles.centerContent}>
-        <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={[styles.brandText, { color: theme.brand }]}>BandFlow</Text>
+        <BandFlowLogo height={130} isDarkTheme={isDarkTheme} />
       </View>
 
       <View style={styles.bottomArea}>
@@ -56,18 +53,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     marginTop: -40,
-  },
-  logo: {
-    width: 126,
-    height: 126,
-    marginBottom: 16,
-    borderRadius: 28,
-  },
-  brandText: {
-    fontSize: 42,
-    lineHeight: 46,
-    fontWeight: '900',
-    letterSpacing: 0.3,
   },
   bottomArea: {
     paddingHorizontal: 24,

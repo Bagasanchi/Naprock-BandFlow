@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { BandFlowMark } from './BandFlowLogo';
 
 type BandAuthenticatorAppProps = {
   isDarkTheme: boolean;
@@ -42,7 +43,9 @@ export default function BandAuthenticatorApp({ isDarkTheme }: BandAuthenticatorA
           </View>
 
           <View style={styles.pairingContent}>
-            <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+            <View style={styles.logo}>
+              <BandFlowMark height={132} />
+            </View>
 
             <Text style={[styles.prompt, { color: theme.title }]}>Tap the band to link</Text>
             <Text style={[styles.instruction, { color: theme.subtitle }]}>Hold your biometric band near the device</Text>
@@ -110,9 +113,6 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   logo: {
-    width: 132,
-    height: 132,
-    borderRadius: 28,
     marginBottom: 26,
   },
   prompt: {
