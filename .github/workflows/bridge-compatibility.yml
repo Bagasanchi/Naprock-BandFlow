@@ -28,7 +28,7 @@ jobs:
       - name: Check out the current naprock bridge
         uses: actions/checkout@v4
         with:
-          repository: Bagasanchi/naprock
+          repository: Tuvshu0-coder/naprock
           path: naprock-bridge
 
       - name: Set up Node.js

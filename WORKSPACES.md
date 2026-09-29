@@ -17,15 +17,15 @@ app. See `BandFlow-Web/README.md` for how to start it.
 The app workspace does not track the bridge repository as a submodule. The
 repositories communicate through the v1 contract in `contracts/ble-bridge-v1.md`.
 
-To sync partner changes safely:
+`naprock` tracks the shared repository directly
+(`origin` = <https://github.com/Tuvshu0-coder/naprock>).
+
+To pull teammates' changes safely:
 
 ```powershell
 npm run sync:naprock
 ```
 
-This fetches `upstream/main`, fast-forwards the sibling `naprock` workspace, and
-refuses to run while it has uncommitted changes. To also update your fork:
-
-```powershell
-npm run sync:naprock -- -PushToFork
-```
+This pulls `origin/main` into the sibling `naprock` workspace (rebasing any
+unpushed local commits on top) and refuses to run while it has uncommitted
+changes. Push your own `naprock` commits with `git push` from that folder.
