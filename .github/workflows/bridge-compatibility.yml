@@ -34,8 +34,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.13.x
+          node-version: 22.x
           cache: npm
+
+      # package-lock.json is written by npm 12 locally; npm 10 (bundled with Node 22)
+      # rejects it because eas-cli's TypeScript 5 peer is not locked.
+      - name: Use npm 12
+        run: npm install -g npm@12
 
       - name: Install Node dependencies
         run: npm ci
