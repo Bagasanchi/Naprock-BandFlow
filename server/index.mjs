@@ -138,6 +138,9 @@ if (tableExists('work_items')) {
       }
       descriptions.forEach((description, index) => insertSubtask.run(randomUUID(), row.id, description, row.status === 'Done' ? 'done' : 'pending', index + 1, row.created_at ?? new Date().toISOString()));
     }
+    // Import once only: renaming the table keeps the old rows for reference but stops them
+    // from being copied back into tasks on the next start after someone deletes them.
+    db.exec('ALTER TABLE work_items RENAME TO imported_work_items');
   };
   withTransaction(migrateLegacy);
 }
@@ -170,6 +173,9 @@ if (tableExists('legacy_python_tasks')) {
           insertSubtask.run(subtaskId, taskId, subtask.description, ['pending', 'active', 'done'].includes(subtask.status) ? subtask.status : 'pending', dependsOn, subtask.order_index, subtask.created_at ?? task.created_at ?? new Date().toISOString(), subtask.started_at ?? null, subtask.status === 'done' ? subtask.created_at ?? null : null);
         }
       }
+      // Import once only, for the same reason as work_items above.
+      if (tableExists('legacy_python_subtasks')) db.exec('ALTER TABLE legacy_python_subtasks RENAME TO imported_python_subtasks');
+      db.exec('ALTER TABLE legacy_python_tasks RENAME TO imported_python_tasks');
     };
     withTransaction(migratePython);
   }

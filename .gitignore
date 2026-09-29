@@ -46,3 +46,6 @@ data/*.sqlite-shm
 /ios
 /android
 .codegraphy/*
+
+# Local database backups (contain password hashes)
+data/*.backup*
