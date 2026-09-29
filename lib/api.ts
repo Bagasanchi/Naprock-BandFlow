@@ -1,7 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import type { WorkItem } from './work';
 
-const apiUrl = (process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+// In development, hostUri is the address of the computer running Expo (e.g. "192.168.1.5:8081"),
+// so the API on the same computer is reachable on port 8787 without editing .env after changing networks.
+const devServerHost = Constants.expoConfig?.hostUri?.split(':')[0];
+const apiUrl = (process.env.EXPO_PUBLIC_API_URL || (devServerHost ? `http://${devServerHost}:8787` : 'http://127.0.0.1:8787')).replace(/\/$/, '');
 const tokenKey = 'bandflow_api_token';
 
 export type ApiUser = { id: string; email: string; fullName: string; role: 'worker' | 'boss' };
