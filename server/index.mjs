@@ -303,6 +303,16 @@ const validateBreakdown = (result, fallbackTitle) => {
   if (subtasks.some((item) => item.depends_on_order_index != null && (item.depends_on_order_index === item.order_index || !orderIndexes.has(item.depends_on_order_index)))) {
     throw new Error('Structured breakdown contains an invalid dependency.');
   }
+  // Each subtask has at most one dependency, so a loop (1 -> 2 -> 1) would leave every step in it
+  // pending forever and the task could never finish.
+  const dependencyOf = new Map(subtasks.map((item) => [item.order_index, item.depends_on_order_index]));
+  for (const item of subtasks) {
+    const seen = new Set([item.order_index]);
+    for (let next = dependencyOf.get(item.order_index); next != null; next = dependencyOf.get(next)) {
+      if (seen.has(next)) throw new Error('Structured breakdown contains circular dependencies.');
+      seen.add(next);
+    }
+  }
   return { title: typeof result.title === 'string' && result.title.trim() ? result.title.trim() : fallbackTitle, subtasks };
 };
 

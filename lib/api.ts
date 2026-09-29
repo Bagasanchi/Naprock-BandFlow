@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import type { WorkItem } from './work';
+import type { BandDelivery, SubtaskDetail, WorkItem } from './work';
 
 // In development, hostUri is the address of the computer running Expo (e.g. "192.168.1.5:8081"),
 // so the API on the same computer is reachable on port 8787 without editing .env after changing networks.
@@ -88,8 +88,18 @@ export async function updateWorkerStatus(workerId: string, status: WorkerStatus)
 }
 
 export async function getWork() {
-  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; subtasks?: string[] | string; assigned_to: string; eisenhower_category?: string | null }>>('/work');
-  return rows.map((row) => ({ ...row, assignedTo: row.assigned_to, subtasks: parseSubtasks(row.subtasks) }));
+  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; subtasks?: string[] | string; subtask_details?: SubtaskDetail[]; assigned_to: string; eisenhower_category?: string | null }>>('/work');
+  return rows.map((row): WorkItem => ({
+    id: row.id,
+    title: row.title,
+    priority: row.priority,
+    status: row.status,
+    progress: row.progress,
+    due: row.due,
+    assignedTo: row.assigned_to,
+    subtasks: parseSubtasks(row.subtasks),
+    subtaskDetails: row.subtask_details ?? [],
+  }));
 }
 
 function parseSubtasks(value?: string[] | string) {
@@ -111,6 +121,18 @@ export async function deleteWork(workId: string) {
   return request<{ id: string }>(`/work/${workId}`, { method: 'DELETE' });
 }
 
+// assignedTo is the worker's account id, so two workers with the same name never get each other's work.
 export async function createWork(work: { title: string; priority: WorkItem['priority']; due?: string; subtasks?: string[]; assignedTo: string }) {
-  return request('/work', { method: 'POST', body: JSON.stringify(work) });
+  return request<{ id: string; band: BandDelivery }>('/work', { method: 'POST', body: JSON.stringify(work) });
+}
+
+// Restores the previous login when the app starts; null when there is no valid saved session.
+export async function restoreSession() {
+  if (!(await AsyncStorage.getItem(tokenKey))) return null;
+  try {
+    return await getProfile();
+  } catch (error) {
+    if ((error as { status?: number })?.status === 401) await AsyncStorage.removeItem(tokenKey);
+    return null;
+  }
 }

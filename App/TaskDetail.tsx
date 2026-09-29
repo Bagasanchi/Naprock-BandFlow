@@ -1,23 +1,21 @@
 import React, { useState } from 'react';
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { WorkItem } from '../lib/work';
+import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Avatar from './Avatar';
+import type { SubtaskDetail, WorkItem } from '../lib/work';
 
 type TaskDetailProps = {
   isDarkTheme: boolean;
-  workId: string;
-  title: string;
-  priority: string;
-  due: string;
-  progress: number;
-  status: WorkItem['status'];
-  subtasks: string[];
+  task: WorkItem;
   workerName: string;
   onStatusChanged: (status: WorkItem['status']) => Promise<void>;
+  onRefresh: () => Promise<void>;
 };
 
-export default function TaskDetail({ isDarkTheme, title, priority, due, progress, status, subtasks, workerName, onStatusChanged }: TaskDetailProps) {
-  const [completedSubtasks, setCompletedSubtasks] = useState<boolean[]>(() => subtasks.map(() => false));
+const priorityColors: Record<string, string> = { High: '#E84545', Medium: '#D99324', Low: '#2EAD72' };
+
+export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChanged, onRefresh }: TaskDetailProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const theme = isDarkTheme
     ? {
         background: '#07111F',
@@ -50,9 +48,14 @@ export default function TaskDetail({ isDarkTheme, title, priority, due, progress
         unverified: '#E84545',
       };
 
-  const priorityLabel = priority.toLowerCase() === 'high' ? 'High' : 'Low';
-  const priorityColor = priorityLabel === 'High' ? '#E84545' : '#2EAD72';
-  const statusLabel = status === 'Done' ? 'Done' : status;
+  // Subtask state comes from the server: the wristband's DONE button moves it forward.
+  const subtasks: SubtaskDetail[] = task.subtaskDetails?.length
+    ? task.subtaskDetails
+    : task.subtasks.map((description, index) => ({ id: `${index}`, description, status: task.status === 'Done' ? 'done' : 'pending', order_index: index + 1, started_at: null, completed_at: null }));
+  const activeSubtask = subtasks.find((subtask) => subtask.status === 'active');
+  const doneCount = subtasks.filter((subtask) => subtask.status === 'done').length;
+  const priorityColor = priorityColors[task.priority] ?? priorityColors.Medium;
+
   const submitStatus = async (nextStatus: WorkItem['status']) => {
     setIsUpdating(true);
     try {
@@ -62,76 +65,95 @@ export default function TaskDetail({ isDarkTheme, title, priority, due, progress
     }
   };
 
+  const refresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} tintColor={theme.progressFill} colors={[theme.progressFill]} />}
+      >
         <View style={[styles.hero, { backgroundColor: theme.hero, borderColor: theme.border }]}>
-        <View style={styles.headerTopRow}>
-          <Text style={[styles.taskTitle, { color: theme.title }]}>{title}</Text>
-          <Text style={[styles.statusText, { color: theme.title, borderColor: theme.border }]}>{statusLabel}</Text>
-        </View>
-
-        <View style={styles.metaRow}>
-          <View style={styles.priorityGroup}>
-            <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
-            <Text style={[styles.metaText, { color: theme.body }]}>{priorityLabel} priority</Text>
+          <View style={styles.headerTopRow}>
+            <Text style={[styles.taskTitle, { color: theme.title }]}>{task.title}</Text>
+            <Text style={[styles.statusText, { color: theme.title, borderColor: theme.border }]}>{task.status}</Text>
           </View>
-          <Text style={[styles.metaText, { color: theme.body }]}>Due {due}</Text>
-        </View>
 
-        <View style={styles.overallProgressGroup}>
-          <View style={[styles.overallProgressTrack, { backgroundColor: theme.progressTrack }]}>
-            <View style={[styles.overallProgressFill, { backgroundColor: theme.progressFill, width: `${Math.min(progress, 100)}%` }]} />
+          <View style={styles.metaRow}>
+            <View style={styles.priorityGroup}>
+              <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
+              <Text style={[styles.metaText, { color: theme.body }]}>{task.priority} priority</Text>
+            </View>
+            <Text style={[styles.metaText, { color: theme.body }]}>Due {task.due}</Text>
           </View>
-          <Text style={[styles.progressValue, { color: theme.title }]}>{progress}%</Text>
-        </View>
+
+          <View style={styles.overallProgressGroup}>
+            <View style={[styles.overallProgressTrack, { backgroundColor: theme.progressTrack }]}>
+              <View style={[styles.overallProgressFill, { backgroundColor: theme.progressFill, width: `${Math.min(task.progress, 100)}%` }]} />
+            </View>
+            <Text style={[styles.progressValue, { color: theme.title }]}>{task.progress}%</Text>
+          </View>
         </View>
 
         <View style={[styles.statusBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={[styles.statusIcon, { borderColor: theme.border }]}>
-          <Text style={styles.statusIconText}>🔒</Text>
-        </View>
-        <View style={styles.statusCopy}>
-          <Text style={[styles.statusHeading, { color: theme.body }]}>Authenticated Status</Text>
-          <Text style={[styles.statusTitle, { color: theme.title }]}>Band Verified • {workerName} • Just now</Text>
-        </View>
-        <Text style={[styles.authStatus, { color: theme.verified, borderColor: theme.verified }]}>Verified</Text>
+          <View style={[styles.statusIcon, { borderColor: theme.border }]}>
+            <Text style={styles.statusIconText}>⌚</Text>
+          </View>
+          <View style={styles.statusCopy}>
+            <Text style={[styles.statusHeading, { color: theme.body }]}>On the wristband</Text>
+            <Text style={[styles.statusTitle, { color: theme.title }]}>
+              {activeSubtask ? activeSubtask.description : task.status === 'Done' || (subtasks.length > 0 && doneCount === subtasks.length) ? 'All steps finished' : 'Nothing sent yet'}
+            </Text>
+          </View>
+          <Text style={[styles.authStatus, { color: activeSubtask ? theme.progressFill : theme.verified, borderColor: activeSubtask ? theme.progressFill : theme.verified }]}>
+            {doneCount}/{subtasks.length}
+          </Text>
         </View>
 
         <View style={[styles.assignedBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.assignedLabel, { color: theme.body }]}>ASSIGNED TO</Text>
-        <View style={styles.assignedPerson}>
-          <Image source={require('../assets/icon.png')} style={styles.profileImage} resizeMode="contain" />
-          <Text style={[styles.assignedName, { color: theme.title }]}>{workerName}</Text>
-        </View>
+          <Text style={[styles.assignedLabel, { color: theme.body }]}>ASSIGNED TO</Text>
+          <View style={styles.assignedPerson}>
+            <Avatar name={workerName} size={42} backgroundColor={theme.progressFill} />
+            <Text style={[styles.assignedName, { color: theme.title }]}>{workerName}</Text>
+          </View>
         </View>
 
         <View style={[styles.subtasksBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Text style={[styles.subtasksTitle, { color: theme.title }]}>SUBTASKS</Text>
-        {subtasks.map((subtask, index) => (
-          <Pressable
-            key={subtask}
-            onPress={() => setCompletedSubtasks((current) => current.map((completed, itemIndex) => itemIndex === index ? !completed : completed))}
-            style={styles.subtaskRow}
-          >
-            <View style={[styles.checkbox, { borderColor: theme.border, backgroundColor: completedSubtasks[index] ? theme.progressFill : 'transparent' }]}>
-              {completedSubtasks[index] && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={[styles.subtaskText, { color: theme.body }, completedSubtasks[index] && styles.completedSubtask]}>{subtask}</Text>
-          </Pressable>
-        ))}
-        {subtasks.length === 0 && <Text style={[styles.subtaskText, { color: theme.body }]}>No subtasks were added.</Text>}
+          <Text style={[styles.subtasksTitle, { color: theme.title }]}>SUBTASKS</Text>
+          {subtasks.map((subtask) => {
+            const isDone = subtask.status === 'done';
+            const isActive = subtask.status === 'active';
+            return (
+              <View key={subtask.id} style={styles.subtaskRow}>
+                <View style={[styles.checkbox, { borderColor: isDone ? theme.verified : isActive ? theme.progressFill : theme.border, backgroundColor: isDone ? theme.verified : 'transparent' }]}>
+                  {isDone && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={[styles.subtaskText, { color: isActive ? theme.title : theme.body }, isActive && styles.activeSubtask, isDone && styles.completedSubtask]}>{subtask.description}</Text>
+                {isActive && <Text style={[styles.onWatch, { color: theme.progressFill, borderColor: theme.progressFill }]}>On watch</Text>}
+              </View>
+            );
+          })}
+          {subtasks.length === 0 && <Text style={[styles.subtaskText, { color: theme.body }]}>No subtasks were added.</Text>}
+          <Text style={[styles.subtaskHint, { color: theme.body }]}>Steps are completed from the wristband. Pull down to refresh.</Text>
         </View>
 
         <Pressable style={[styles.breakDownButton, { backgroundColor: theme.breakDownBackground }]}>
           <Text style={[styles.breakDownText, { color: theme.breakDownText }]}>🔧  Break Down</Text>
         </Pressable>
-        {status !== 'Done' && (
+        {task.status !== 'Done' && (
           <View style={styles.actionRow}>
-            <Pressable disabled={isUpdating} onPress={() => void submitStatus('Review')} style={[styles.actionButton, { backgroundColor: theme.progressFill }]}>
-              <Text style={[styles.actionText, { color: theme.actionText }]}>{status === 'Review' ? 'Submitted for review' : 'Submit for review'}</Text>
+            <Pressable disabled={isUpdating || task.status === 'Review'} onPress={() => void submitStatus('Review')} style={[styles.actionButton, { backgroundColor: theme.progressFill, opacity: isUpdating || task.status === 'Review' ? 0.6 : 1 }]}>
+              <Text style={[styles.actionText, { color: theme.actionText }]}>{task.status === 'Review' ? 'Submitted for review' : 'Submit for review'}</Text>
             </Pressable>
-            <Pressable disabled={isUpdating} onPress={() => void submitStatus('Done')} style={[styles.actionButton, { backgroundColor: theme.verified }]}>
+            <Pressable disabled={isUpdating} onPress={() => void submitStatus('Done')} style={[styles.actionButton, { backgroundColor: theme.verified, opacity: isUpdating ? 0.6 : 1 }]}>
               <Text style={[styles.actionText, { color: theme.actionText }]}>Mark as done</Text>
             </Pressable>
           </View>
@@ -166,7 +188,6 @@ const styles = StyleSheet.create({
   assignedLabel: { marginBottom: 10, fontSize: 12, fontWeight: '900', letterSpacing: 0.8 },
   assignedBox: { marginHorizontal: 20, marginTop: 22, borderWidth: 1, borderRadius: 16, padding: 14 },
   assignedPerson: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  profileImage: { width: 42, height: 42, borderRadius: 21 },
   assignedName: { fontSize: 15, fontWeight: '800' },
   subtasksBox: { marginHorizontal: 20, marginTop: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16, padding: 16 },
   subtasksTitle: { fontSize: 14, fontWeight: '900', letterSpacing: 0.8, marginBottom: 12 },
@@ -175,6 +196,9 @@ const styles = StyleSheet.create({
   checkmark: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   subtaskText: { flex: 1, fontSize: 13, lineHeight: 18 },
   completedSubtask: { textDecorationLine: 'line-through', opacity: 0.65 },
+  activeSubtask: { fontWeight: '800' },
+  onWatch: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontSize: 10, fontWeight: '900', overflow: 'hidden' },
+  subtaskHint: { fontSize: 11, lineHeight: 16, marginTop: 10 },
   breakDownButton: { marginHorizontal: 20, marginTop: 16, marginBottom: 18, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   breakDownText: { fontSize: 14, fontWeight: '800' },
   actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 20, marginBottom: 18 },

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
 import Avatar from './Avatar';
+import usePullToRefresh from './usePullToRefresh';
 
 type WorkerDashboardProps = {
   isDarkTheme: boolean;
@@ -12,6 +13,7 @@ type WorkerDashboardProps = {
   userName: string;
   avatar?: string | null;
   onOpenProfile: () => void;
+  onRefresh: () => Promise<void>;
 };
 
 const stats = [
@@ -20,7 +22,8 @@ const stats = [
   { icon: '👥', value: '5', label: 'Team Size' },
 ];
 
-export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onViewAll, userName, avatar, onOpenProfile, workItems }: WorkerDashboardProps) {
+export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onViewAll, userName, avatar, onOpenProfile, onRefresh, workItems }: WorkerDashboardProps) {
+  const pullToRefresh = usePullToRefresh(onRefresh);
   const theme = isDarkTheme
     ? {
         background: '#07111F', surface: 'rgba(11, 22, 39, 0.92)', border: 'rgba(161, 182, 214, 0.2)',
@@ -50,7 +53,7 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onV
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl {...pullToRefresh} tintColor={theme.accent} colors={[theme.accent]} />}>
         <View style={[styles.hero, { backgroundColor: theme.hero, borderColor: theme.border }]}>
           <View style={styles.heroTopRow}>
             <View style={styles.identityRow}>
