@@ -56,7 +56,7 @@ export default function AssignWork({ isDarkTheme, onAssignWork, onBack, userName
   const publishWork = () => {
     const title = workBrief.trim().split('\n')[0].trim();
     if (!title || !selected) return;
-    onAssignWork({ title, priority: 'Medium', subtasks: [], assignedTo: selected.name });
+    onAssignWork({ title, priority: 'Medium', subtasks: [], assignedTo: selected.id });
   };
 
   return (

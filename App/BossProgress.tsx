@@ -1,16 +1,18 @@
 import React from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
+import usePullToRefresh from './usePullToRefresh';
 
 type BossProgressProps = {
   isDarkTheme: boolean;
   onBack: () => void;
   workItems: WorkItem[];
   userName: string;
+  onRefresh: () => Promise<void>;
 };
 
-const velocity = [42, 58, 49, 72, 66, 84, 78];
-export default function BossProgress({ isDarkTheme, onBack, userName, workItems }: BossProgressProps) {
+export default function BossProgress({ isDarkTheme, onBack, onRefresh, userName, workItems }: BossProgressProps) {
+  const pullToRefresh = usePullToRefresh(onRefresh);
   const theme = isDarkTheme
     ? {
         background: '#170827', surface: '#26103B', surfaceRaised: '#33154B', border: 'rgba(232, 208, 255, 0.18)',
@@ -29,10 +31,17 @@ export default function BossProgress({ isDarkTheme, onBack, userName, workItems 
   const completedCount = workItems.filter((item) => item.status === 'Done').length;
   const activeCount = workItems.filter((item) => item.status !== 'Done').length;
   const averageProgress = workItems.length ? Math.round(workItems.reduce((total, item) => total + item.progress, 0) / workItems.length) : 0;
+  const reviewCount = workItems.filter((item) => item.status === 'Review').length;
+  const statusBars = [
+    { label: 'In Progress', value: activeCount - reviewCount, color: theme.accent },
+    { label: 'Review', value: reviewCount, color: theme.gold },
+    { label: 'Done', value: completedCount, color: theme.green },
+  ];
+  const largestBar = Math.max(1, ...statusBars.map((bar) => bar.value));
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl {...pullToRefresh} tintColor={theme.accent} colors={[theme.accent]} />}>
         <View style={styles.header}>
           <Pressable onPress={onBack} hitSlop={10} style={[styles.backButton, { borderColor: theme.border, backgroundColor: theme.surface }]}>
             <Text style={[styles.backArrow, { color: theme.title }]}>&lt;</Text>
@@ -49,16 +58,16 @@ export default function BossProgress({ isDarkTheme, onBack, userName, workItems 
 
         <View style={[styles.hero, { backgroundColor: theme.surfaceRaised, borderColor: theme.border }]}>
           <View style={styles.heroCopy}>
-            <Text style={[styles.heroKicker, { color: theme.body }]}>SPRINT 08 / TEAM PULSE</Text>
-            <Text style={[styles.heroTitle, { color: theme.title }]}>A healthy week for {userName.split(' ')[0]}.</Text>
-            <Text style={[styles.heroBody, { color: theme.body }]}>Your team has shipped steadily and the finish line is in sight.</Text>
+            <Text style={[styles.heroKicker, { color: theme.body }]}>TEAM PULSE</Text>
+            <Text style={[styles.heroTitle, { color: theme.title }]}>{workItems.length ? `Your team is ${averageProgress}% of the way there, ${userName.split(' ')[0]}.` : `No work assigned yet, ${userName.split(' ')[0]}.`}</Text>
+            <Text style={[styles.heroBody, { color: theme.body }]}>{completedCount} of {workItems.length} tasks are done.</Text>
           </View>
           <View style={[styles.healthBadge, { borderColor: theme.accent }]}>
-            <Text style={[styles.healthValue, { color: theme.title }]}>78</Text>
-            <Text style={[styles.healthLabel, { color: theme.body }]}>health</Text>
+            <Text style={[styles.healthValue, { color: theme.title }]}>{averageProgress}</Text>
+            <Text style={[styles.healthLabel, { color: theme.body }]}>avg %</Text>
           </View>
           <View style={[styles.heroTrack, { backgroundColor: theme.track }]}>
-            <View style={[styles.heroFill, { backgroundColor: theme.accent, width: '78%' }]} />
+            <View style={[styles.heroFill, { backgroundColor: theme.accent, width: `${averageProgress}%` }]} />
           </View>
         </View>
 
@@ -69,7 +78,7 @@ export default function BossProgress({ isDarkTheme, onBack, userName, workItems 
           </View>
           <View style={[styles.metric, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.metricValue, { color: theme.title }]}>{averageProgress}%</Text>
-            <Text style={[styles.metricLabel, { color: theme.body }]}>team velocity</Text>
+            <Text style={[styles.metricLabel, { color: theme.body }]}>avg. progress</Text>
           </View>
           <View style={[styles.metric, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.metricValue, { color: theme.green }]}>{completedCount}</Text>
@@ -79,19 +88,20 @@ export default function BossProgress({ isDarkTheme, onBack, userName, workItems 
 
         <View style={styles.sectionHeader}>
           <View>
-            <Text style={[styles.sectionTitle, { color: theme.title }]}>Velocity, at a glance</Text>
-            <Text style={[styles.sectionSubtitle, { color: theme.body }]}>Last seven work days</Text>
+            <Text style={[styles.sectionTitle, { color: theme.title }]}>Work by status</Text>
+            <Text style={[styles.sectionSubtitle, { color: theme.body }]}>How the team's tasks are split right now</Text>
           </View>
-          <Text style={[styles.trend, { color: theme.green }]}>+18%</Text>
+          <Text style={[styles.trend, { color: theme.green }]}>{completedCount} done</Text>
         </View>
         <View style={[styles.chart, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.chartBars}>
-            {velocity.map((value, index) => (
-              <View key={value + index} style={styles.barColumn}>
+            {statusBars.map((bar) => (
+              <View key={bar.label} style={styles.barColumn}>
+                <Text style={[styles.barLabel, { color: theme.title }]}>{bar.value}</Text>
                 <View style={[styles.barTrack, { backgroundColor: theme.track }]}>
-                  <View style={[styles.bar, { backgroundColor: index === velocity.length - 1 ? theme.accent : theme.accentSoft, height: `${value}%` }]} />
+                  <View style={[styles.bar, { backgroundColor: bar.color, height: `${(bar.value / largestBar) * 100}%` }]} />
                 </View>
-                <Text style={[styles.barLabel, { color: theme.muted }]}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][index]}</Text>
+                <Text style={[styles.barLabel, { color: theme.muted }]}>{bar.label}</Text>
               </View>
             ))}
           </View>

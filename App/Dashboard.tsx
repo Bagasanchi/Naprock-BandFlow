@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
 import Avatar from './Avatar';
+import usePullToRefresh from './usePullToRefresh';
 
 type DashboardProps = {
   isDarkTheme: boolean;
@@ -15,10 +16,13 @@ type DashboardProps = {
   userName: string;
   avatar?: string | null;
   onOpenProfile: () => void;
+  onOpenTask: (task: WorkItem) => void;
+  onRefresh: () => Promise<void>;
 };
 
-export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, onDeleteWork, userName, avatar, onOpenProfile, workItems }: DashboardProps) {
+export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, onDeleteWork, userName, avatar, onOpenProfile, onOpenTask, onRefresh, workItems }: DashboardProps) {
   const [showCompleted, setShowCompleted] = useState(false);
+  const pullToRefresh = usePullToRefresh(onRefresh);
   const theme = isDarkTheme
     ? {
         background: '#170827', surface: 'rgba(38, 15, 59, 0.92)', border: 'rgba(232, 208, 255, 0.18)',
@@ -55,7 +59,7 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl {...pullToRefresh} tintColor={theme.accent} colors={[theme.accent]} />}>
         <View style={[styles.hero, { backgroundColor: theme.accentSoft, borderColor: theme.border }]}>
           <View style={styles.heroTopRow}>
             <View style={styles.identityRow}>
@@ -124,7 +128,7 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
               const tone = item.status === 'Done' ? 'done' : item.status === 'Review' ? 'review' : 'progress';
               const status = statusTheme[tone];
               return (
-                <View key={item.id} style={[styles.teamRow, index !== visibleWorkItems.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: 1 }]}>
+                <Pressable key={item.id} onPress={() => onOpenTask(item)} style={({ pressed }) => [styles.teamRow, index !== visibleWorkItems.length - 1 && { borderBottomColor: theme.border, borderBottomWidth: 1 }, pressed && { opacity: 0.7 }]}>
                   <View style={[styles.avatar, { backgroundColor: theme.avatar }]}><Text style={styles.avatarText}>{item.assignedTo.split(' ').map((part) => part[0]).join('').slice(0, 2)}</Text></View>
                   <View style={styles.taskCopy}>
                     <Text style={[styles.taskTitle, { color: theme.title }]} numberOfLines={1}>{item.title}</Text>
@@ -142,7 +146,7 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
                   >
                     <Text style={[styles.deleteButtonText, { color: theme.body }]}>×</Text>
                   </Pressable>
-                </View>
+                </Pressable>
               );
             })}
           </View>

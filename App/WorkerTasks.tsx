@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
+import usePullToRefresh from './usePullToRefresh';
 
 type WorkerTask = {
   title: string;
@@ -18,11 +19,13 @@ type WorkerTasksProps = {
   onOpenTask: (task: { id: string; title: string; priority: string; due: string; progress: number; status: WorkItem['status']; subtasks: string[] }) => void;
   workItems: WorkItem[];
   userName: string;
+  onRefresh: () => Promise<void>;
 };
 
 const filters = ['All', 'Active', 'Done'];
 
-export default function WorkerTasks({ isDarkTheme, onBack, onOpenTask, userName, workItems }: WorkerTasksProps) {
+export default function WorkerTasks({ isDarkTheme, onBack, onOpenTask, onRefresh, userName, workItems }: WorkerTasksProps) {
+  const pullToRefresh = usePullToRefresh(onRefresh);
   const [selectedFilter, setSelectedFilter] = useState('Active');
   const theme = isDarkTheme
     ? {
@@ -50,7 +53,7 @@ export default function WorkerTasks({ isDarkTheme, onBack, onOpenTask, userName,
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl {...pullToRefresh} tintColor={theme.accent} colors={[theme.accent]} />}>
         <View style={styles.header}>
           <Pressable onPress={onBack} hitSlop={10} style={[styles.backButton, { borderColor: theme.border, backgroundColor: theme.surface }]}>
             <Text style={[styles.backArrow, { color: theme.title }]}>‹</Text>
@@ -106,7 +109,7 @@ export default function WorkerTasks({ isDarkTheme, onBack, onOpenTask, userName,
             const tone = task.status === 'Done' ? 'done' : task.status === 'Review' ? 'review' : 'progress';
             return (
             <Pressable
-              key={task.title}
+              key={task.id}
               onPress={() => onOpenTask(task)}
               style={({ pressed }) => [styles.taskRow, { backgroundColor: theme.surface, borderColor: theme.border, opacity: pressed ? 0.82 : 1 }]}
             >

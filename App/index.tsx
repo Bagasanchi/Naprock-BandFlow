@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import BandAuth from './BandAuth';
 import BandAuthenticatorApp from './BandAuthenticatorApp';
@@ -21,7 +21,7 @@ import WorkerDirectory from './WorkerDirectory';
 import SideMenu from './SideMenu';
 import Profile from './Profile';
 import Settings from './Settings';
-import type { WorkItem } from '../lib/work';
+import type { BandDelivery, WorkItem } from '../lib/work';
 import * as api from '../lib/api';
 import type { Role } from '../lib/roleTheme';
 // hello
@@ -32,16 +32,7 @@ type RootStackParamList = {
   ForgotPassword: { email?: string } | undefined;
   BandAuth: undefined;
   BandAuthenticatorApp: undefined;
-  TaskDetail: {
-    id: string;
-    title: string;
-    priority: string;
-    due: string;
-    progress: number;
-    status: WorkItem['status'];
-    subtasks: string[];
-    workerName: string;
-  };
+  TaskDetail: { id: string; workerName: string };
   CreateWork: undefined;
   BossDashboard: { userName?: string } | undefined;
   WorkerDashboard: { userName?: string } | undefined;
@@ -54,14 +45,6 @@ type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-function isWorkAssignedToUser(assignedTo: string, userName: string) {
-  const assignedName = assignedTo.trim().toLowerCase();
-  const loggedInName = userName.trim().toLowerCase();
-  if (!assignedName || !loggedInName) return false;
-  if (assignedName === loggedInName) return true;
-  return assignedName.split(/\s+/)[0] === loggedInName.split(/\s+/)[0];
-}
 
 type GlobalPageTitleProps = {
   isDarkTheme: boolean;
@@ -105,15 +88,59 @@ export default function App() {
   const logout = () => {
     void api.logout();
     setProfile(null);
+    setWorkItems([]);
     navigationRef.reset({ index: 0, routes: [{ name: 'Intro' }] });
   };
 
+  // The server already returns only the signed-in worker's own tasks (all tasks for a boss).
+  // On a failed refresh keep the last list rather than blanking the screen.
   const refreshWork = async () => {
     try {
       setWorkItems(await api.getWork());
     } catch {
-      setWorkItems([]);
+      // Keep showing the previous list; the next refresh will try again.
     }
+  };
+
+  // Progress changes on the server when the wristband reports DONE, so keep the list fresh
+  // while signed in: every 20 seconds and whenever the app returns to the foreground.
+  useEffect(() => {
+    if (!profile) return;
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') void refreshWork();
+    }, 20000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshWork();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [profile?.id]);
+
+  // Open straight to the dashboard when a saved login is still valid.
+  const restoreSession = async () => {
+    const restored = await api.restoreSession();
+    if (!restored) return;
+    setProfile(restored);
+    setSessionRole(restored.role);
+    setSessionName(restored.fullName);
+    void refreshWork();
+    if (navigationRef.getCurrentRoute()?.name === 'Intro') {
+      navigationRef.reset({ index: 0, routes: [{ name: restored.role === 'boss' ? 'BossDashboard' : 'WorkerDashboard' }] });
+    }
+  };
+
+  const reportBandDelivery = (results: Array<{ band?: BandDelivery }>) => {
+    const failed = results.find((result) => !result.band?.sent);
+    if (!failed) {
+      Alert.alert('Work published', results.length > 1 ? `${results.length} tasks were created. The wristband shows the most recent one.` : 'The first step is now on the wristband.');
+      return;
+    }
+    Alert.alert(
+      'Work saved, not on the wristband',
+      `${failed.band?.error ?? 'The BLE bridge did not answer.'}\n\nThe work is saved. To show it on the watch, start the bridge (python app.py in the naprock folder) with the watch switched on.`,
+    );
   };
 
   const titleByRoute: Record<keyof RootStackParamList, string> = {
@@ -145,6 +172,7 @@ export default function App() {
           if (route) {
             setCurrentRouteName(route);
           }
+          void restoreSession();
         }}
         onStateChange={() => {
           const route = navigationRef.getCurrentRoute()?.name;
@@ -221,7 +249,7 @@ export default function App() {
           <Stack.Screen name="BandAuthenticatorApp">
             {() => <BandAuthenticatorApp isDarkTheme={isDarkTheme} />}
           </Stack.Screen>
-          <Stack.Screen name="BossDashboard">
+          <Stack.Screen name="BossDashboard" listeners={{ focus: () => void refreshWork() }}>
             {({ navigation, route }) => (
               <Dashboard
                 isDarkTheme={isDarkTheme}
@@ -237,6 +265,8 @@ export default function App() {
                   await api.deleteWork(workId);
                   await refreshWork();
                 }}
+                onOpenTask={(task) => navigation.navigate('TaskDetail', { id: task.id, workerName: task.assignedTo })}
+                onRefresh={refreshWork}
                 workItems={workItems}
               />
             )}
@@ -250,20 +280,22 @@ export default function App() {
                 isDarkTheme={isDarkTheme}
                 userName={displayName}
                 onAssignWork={async (work) => {
-                  await api.createWork(work);
+                  const result = await api.createWork(work);
                   await refreshWork();
                   navigation.goBack();
+                  reportBandDelivery([result]);
                 }}
                 onBack={() => navigation.goBack()}
               />
             )}
           </Stack.Screen>
-          <Stack.Screen name="BossProgress">
+          <Stack.Screen name="BossProgress" listeners={{ focus: () => void refreshWork() }}>
             {({ navigation, route }) => (
               <BossProgress
                 isDarkTheme={isDarkTheme}
                 userName={displayName}
                 workItems={workItems}
+                onRefresh={refreshWork}
                 onBack={() => navigation.goBack()}
               />
             )}
@@ -273,14 +305,15 @@ export default function App() {
               <CreateWork
                 isDarkTheme={isDarkTheme}
                 onPublishWork={async (work) => {
-                  await Promise.all(work.map((item) => api.createWork(item)));
+                  const results = await Promise.all(work.map((item) => api.createWork(item)));
                   await refreshWork();
                   navigation.goBack();
+                  reportBandDelivery(results);
                 }}
               />
             )}
           </Stack.Screen>
-          <Stack.Screen name="WorkerDashboard">
+          <Stack.Screen name="WorkerDashboard" listeners={{ focus: () => void refreshWork() }}>
             {({ navigation, route }) => (
               <WorkerDashboard
                 isDarkTheme={isDarkTheme}
@@ -288,42 +321,49 @@ export default function App() {
                 avatar={profile?.avatar}
                 onOpenProfile={() => navigation.navigate('Profile')}
                 onLogout={logout}
-                onOpenTask={(task) => navigation.navigate('TaskDetail', { ...task, workerName: displayName })}
+                onOpenTask={(task) => navigation.navigate('TaskDetail', { id: task.id, workerName: displayName })}
                 onViewAll={() => navigation.navigate('WorkerTasks', { userName: route.params?.userName })}
-                workItems={workItems.filter((item) => isWorkAssignedToUser(item.assignedTo, displayName))}
+                onRefresh={refreshWork}
+                workItems={workItems}
               />
             )}
           </Stack.Screen>
-          <Stack.Screen name="WorkerTasks">
+          <Stack.Screen name="WorkerTasks" listeners={{ focus: () => void refreshWork() }}>
             {({ navigation, route }) => (
               <WorkerTasks
                 isDarkTheme={isDarkTheme}
                 userName={displayName}
                 onBack={() => navigation.goBack()}
-                onOpenTask={(task) => navigation.navigate('TaskDetail', { ...task, workerName: displayName })}
-                workItems={workItems.filter((item) => isWorkAssignedToUser(item.assignedTo, displayName))}
+                onOpenTask={(task) => navigation.navigate('TaskDetail', { id: task.id, workerName: displayName })}
+                onRefresh={refreshWork}
+                workItems={workItems}
               />
             )}
           </Stack.Screen>
-          <Stack.Screen name="TaskDetail">
-            {({ navigation, route }) => (
-              <TaskDetail
-                                workId={route.params.id}
-                                status={route.params.status}
-                isDarkTheme={isDarkTheme}
-                title={route.params.title}
-                priority={route.params.priority}
-                due={route.params.due}
-                progress={route.params.progress}
-                subtasks={route.params.subtasks}
-                workerName={route.params.workerName}
-                onStatusChanged={async (status) => {
-                  await api.updateWorkStatus(route.params.id, status);
-                  await refreshWork();
-                  navigation.goBack();
-                }}
-              />
-            )}
+          <Stack.Screen name="TaskDetail" listeners={{ focus: () => void refreshWork() }}>
+            {({ navigation, route }) => {
+              const task = workItems.find((item) => item.id === route.params.id);
+              if (!task) {
+                return (
+                  <View style={[styles.missingTask, { backgroundColor: isDarkTheme ? '#07111F' : '#EEF5FF' }]}>
+                    <ActivityIndicator color={isDarkTheme ? '#56A7FF' : '#1A67C9'} />
+                  </View>
+                );
+              }
+              return (
+                <TaskDetail
+                  isDarkTheme={isDarkTheme}
+                  task={task}
+                  workerName={route.params.workerName}
+                  onRefresh={refreshWork}
+                  onStatusChanged={async (status) => {
+                    await api.updateWorkStatus(task.id, status);
+                    await refreshWork();
+                    navigation.goBack();
+                  }}
+                />
+              );
+            }}
           </Stack.Screen>
           <Stack.Screen name="Profile">
             {({ navigation }) => (
@@ -375,6 +415,11 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  missingTask: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   globalPageTitle: {
     position: 'absolute',
     left: 16,

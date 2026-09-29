@@ -100,7 +100,7 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
       priority: priority as WorkItem['priority'],
       due: dueDate ? formatDateForStorage(dueDate) : 'Unscheduled',
       subtasks,
-      assignedTo: availableWorkers.find((worker) => worker.id === workerId)?.name ?? 'Workspace member',
+      assignedTo: workerId,
     })));
   };
 
