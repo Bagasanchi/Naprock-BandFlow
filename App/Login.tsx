@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -21,14 +21,23 @@ type LoginProps = {
   onLogin: (role: LoginRole, fullName: string) => void;
   onBandSSO: () => void;
   onCreateAccount: () => void;
+  onForgotPassword: (email: string) => void;
 };
 
-export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount }: LoginProps) {
+export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount, onForgotPassword }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const loginInFlight = useRef(false);
+  // Set when the password arrives in one go (password manager autofill or paste) rather than
+  // typed character by character, so the form can log in without tapping the button.
+  const passwordWasAutofilled = useRef(false);
+
+  const handlePasswordChange = (value: string) => {
+    passwordWasAutofilled.current = value.length - password.length > 1;
+    setPassword(value);
+  };
 
   const handleLogin = async () => {
     if (loginInFlight.current) return;
@@ -52,6 +61,16 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
       setErrorMessage(error instanceof Error ? error.message : 'Unable to sign in.');
     }
   };
+
+  useEffect(() => {
+    if (!passwordWasAutofilled.current || !email.trim() || !password) return;
+    // Autofill may fill the email a moment after the password; wait for both to settle.
+    const timer = setTimeout(() => {
+      passwordWasAutofilled.current = false;
+      void handleLogin();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [email, password]);
 
   const theme = isDarkTheme
     ? {
@@ -144,7 +163,7 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
             <Text style={[styles.label, { color: theme.label }]}>Password</Text>
             <TextInput
               value={password}
-              onChangeText={setPassword}
+              onChangeText={handlePasswordChange}
               placeholder="••••••••"
               placeholderTextColor="#8B96A8"
               secureTextEntry
@@ -170,7 +189,7 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
             {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
             <View style={styles.row}>
-              <Pressable>
+              <Pressable onPress={() => onForgotPassword(email.trim())} hitSlop={8}>
                 <Text style={[styles.link, { color: theme.link }]}>Forgot password?</Text>
               </Pressable>
               <Pressable onPress={onCreateAccount}>

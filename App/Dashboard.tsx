@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Alert, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
+import Avatar from './Avatar';
 
 type DashboardProps = {
   isDarkTheme: boolean;
@@ -12,9 +13,11 @@ type DashboardProps = {
   onDeleteWork: (workId: string) => Promise<void>;
   workItems: WorkItem[];
   userName: string;
+  avatar?: string | null;
+  onOpenProfile: () => void;
 };
 
-export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, onDeleteWork, userName, workItems }: DashboardProps) {
+export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, onDeleteWork, userName, avatar, onOpenProfile, workItems }: DashboardProps) {
   const [showCompleted, setShowCompleted] = useState(false);
   const theme = isDarkTheme
     ? {
@@ -56,7 +59,9 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
         <View style={[styles.hero, { backgroundColor: theme.accentSoft, borderColor: theme.border }]}>
           <View style={styles.heroTopRow}>
             <View style={styles.identityRow}>
-              <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+              <Pressable accessibilityLabel="Open profile" onPress={onOpenProfile} hitSlop={6}>
+                <Avatar name={userName} uri={avatar} size={42} backgroundColor={theme.avatar} />
+              </Pressable>
               <View>
                 <Text style={[styles.eyebrow, { color: theme.body }]}>Boss Dashboard</Text>
                 <Text style={[styles.name, { color: theme.title }]}>{userName}</Text>
@@ -153,7 +158,6 @@ const styles = StyleSheet.create({
   hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 90, paddingBottom: 20 },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   identityRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
-  logo: { width: 38, height: 38, borderRadius: 12 },
   eyebrow: { fontSize: 12, fontWeight: '700' },
   name: { fontSize: 17, lineHeight: 22, fontWeight: '900', marginTop: 1 },
   roleButton: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },

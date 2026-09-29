@@ -27,7 +27,14 @@
     },
     "plugins": [
       "expo-status-bar",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BandFlow uses your photos to set your profile picture.",
+          "cameraPermission": "BandFlow uses the camera to take your profile picture."
+        }
+      ]
     ],
     "extra": {
       "eas": {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getWorkers, updateWorkerStatus, type ApiWorker, type WorkerStatus } from '../lib/api';
+import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { getWorkers, resetWorkerPassword, updateWorkerStatus, type ApiWorker, type WorkerStatus } from '../lib/api';
 
 type WorkerDirectoryProps = {
   isDarkTheme: boolean;
@@ -14,6 +14,10 @@ export default function WorkerDirectory({ isDarkTheme, onBack }: WorkerDirectory
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [updatingId, setUpdatingId] = useState('');
+  const [resettingId, setResettingId] = useState('');
+  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [resetMessage, setResetMessage] = useState<{ workerId: string; text: string; isError: boolean } | null>(null);
 
   const loadWorkers = async () => {
     setErrorMessage('');
@@ -43,9 +47,34 @@ export default function WorkerDirectory({ isDarkTheme, onBack }: WorkerDirectory
     }
   };
 
+  const openReset = (workerId: string) => {
+    setResettingId((current) => current === workerId ? '' : workerId);
+    setTemporaryPassword('');
+    setResetMessage(null);
+  };
+
+  const saveTemporaryPassword = async (worker: ApiWorker) => {
+    if (temporaryPassword.length < 6) {
+      setResetMessage({ workerId: worker.id, text: 'Use at least 6 characters.', isError: true });
+      return;
+    }
+    setIsSavingPassword(true);
+    setResetMessage(null);
+    try {
+      await resetWorkerPassword(worker.id, temporaryPassword);
+      setWorkers((current) => current.map((item) => item.id === worker.id ? { ...item, password_reset_requested_at: null } : item));
+      setResettingId('');
+      setResetMessage({ workerId: worker.id, text: `Temporary password set. Share it with ${worker.name.split(' ')[0]}; they can change it in Settings.`, isError: false });
+    } catch (error) {
+      setResetMessage({ workerId: worker.id, text: error instanceof Error ? error.message : 'Unable to reset the password.', isError: true });
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
   const theme = isDarkTheme
-    ? { background: '#101827', surface: '#182337', border: '#2C3B56', title: '#F4F8FF', body: '#A9B8D0', accent: '#79A7FF', active: '#62D6A7', away: '#FFD285', offline: '#8D9AB0' }
-    : { background: '#F3F7FC', surface: '#FFFFFF', border: '#D7E2F0', title: '#172A45', body: '#5E718D', accent: '#2E63F0', active: '#14865C', away: '#A56800', offline: '#68788E' };
+    ? { background: '#101827', surface: '#182337', border: '#2C3B56', title: '#F4F8FF', body: '#A9B8D0', accent: '#79A7FF', active: '#62D6A7', away: '#FFD285', offline: '#8D9AB0', inputBg: 'rgba(255, 255, 255, 0.06)', danger: '#FF8F8F' }
+    : { background: '#F3F7FC', surface: '#FFFFFF', border: '#D7E2F0', title: '#172A45', body: '#5E718D', accent: '#2E63F0', active: '#14865C', away: '#A56800', offline: '#68788E', inputBg: '#F7FAFF', danger: '#D93A3A' };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -75,6 +104,11 @@ export default function WorkerDirectory({ isDarkTheme, onBack }: WorkerDirectory
                 </View>
                 <Text style={[styles.statusLabel, { color: theme[status] }]}>{status}</Text>
               </View>
+              {worker.password_reset_requested_at ? (
+                <View style={[styles.resetBadge, { backgroundColor: `${theme.away}22`, borderColor: theme.away }]}>
+                  <Text style={[styles.resetBadgeText, { color: theme.away }]}>🔑  Password reset requested {worker.password_reset_requested_at.slice(0, 16).replace('T', ' ')}</Text>
+                </View>
+              ) : null}
               <View style={styles.statusRow}>
                 {statuses.map((option) => {
                   const selected = option === status;
@@ -85,6 +119,26 @@ export default function WorkerDirectory({ isDarkTheme, onBack }: WorkerDirectory
                   );
                 })}
               </View>
+              <Pressable onPress={() => openReset(worker.id)} style={[styles.resetToggle, { borderColor: theme.border }]}>
+                <Text style={[styles.resetToggleText, { color: theme.accent }]}>{resettingId === worker.id ? 'Cancel' : 'Reset password'}</Text>
+              </Pressable>
+              {resettingId === worker.id ? (
+                <View style={styles.resetForm}>
+                  <TextInput
+                    value={temporaryPassword}
+                    onChangeText={setTemporaryPassword}
+                    placeholder="Temporary password"
+                    placeholderTextColor={isDarkTheme ? 'rgba(255, 255, 255, 0.35)' : '#9AA8BC'}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    style={[styles.resetInput, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.title }]}
+                  />
+                  <Pressable disabled={isSavingPassword} onPress={() => void saveTemporaryPassword(worker)} style={[styles.resetSave, { backgroundColor: theme.accent }]}>
+                    {isSavingPassword ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={styles.resetSaveText}>Set</Text>}
+                  </Pressable>
+                </View>
+              ) : null}
+              {resetMessage?.workerId === worker.id ? <Text style={[styles.resetMessage, { color: resetMessage.isError ? theme.danger : theme.active }]}>{resetMessage.text}</Text> : null}
             </View>
           );
         })}
@@ -116,4 +170,13 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
   statusButton: { flex: 1, minHeight: 38, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   statusButtonText: { fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
+  resetBadge: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, marginTop: 12 },
+  resetBadgeText: { fontSize: 11, fontWeight: '800' },
+  resetToggle: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginTop: 12 },
+  resetToggleText: { fontSize: 12, fontWeight: '800' },
+  resetForm: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  resetInput: { flex: 1, minHeight: 42, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 14 },
+  resetSave: { minWidth: 64, minHeight: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  resetSaveText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  resetMessage: { fontSize: 12, lineHeight: 17, fontWeight: '600', marginTop: 8 },
 });

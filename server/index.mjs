@@ -2,8 +2,9 @@ import { createServer } from 'node:http';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { hashPassword, minPasswordLength, verifyPassword } from './passwords.mjs';
 
 const port = Number(process.env.PORT ?? 8787);
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -113,6 +114,11 @@ const withTransaction = (operation) => {
 if (tableExists('users') && !columnExists('users', 'status')) {
   db.exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'away', 'offline'))");
 }
+// Profile fields edited from the app's Profile screen (avatar holds a small JPEG data URI), and
+// the time a worker asked their boss for a password reset from the "Forgot password?" page.
+for (const column of ['phone', 'job_title', 'avatar', 'password_reset_requested_at']) {
+  if (!columnExists('users', column)) db.exec(`ALTER TABLE users ADD COLUMN ${column} TEXT`);
+}
 if (tableExists('work_items')) {
   const legacyRows = db.prepare('SELECT id, title, priority, status, progress, due, subtasks, assigned_to, created_by, created_at FROM work_items').all();
   const insertTask = db.prepare(`INSERT OR IGNORE INTO tasks (id, title, priority, status, progress, due, assigned_to, created_by, created_at, updated_at)
@@ -192,23 +198,6 @@ const readBody = async (request) => {
   }
 };
 
-const hashPassword = (password) => {
-  const salt = randomBytes(16).toString('hex');
-  return `${salt}:${scryptSync(password, salt, 64).toString('hex')}`;
-};
-
-const verifyPassword = (password, stored) => {
-  const [salt, hash] = String(stored ?? '').split(':');
-  if (!salt || !hash) return false;
-  try {
-    const actual = scryptSync(password, salt, 64);
-    const expected = Buffer.from(hash, 'hex');
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
-  } catch {
-    return false;
-  }
-};
-
 const createSession = (userId) => {
   const token = randomBytes(32).toString('hex');
   db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, Date.now() + 1000 * 60 * 60 * 24 * 30);
@@ -227,6 +216,46 @@ const requireUser = (request, response) => {
   const user = getUser(request);
   if (!user) json(response, 401, { error: 'Sign in required.' });
   return user;
+};
+
+// node:sqlite reports every SQLite failure as ERR_SQLITE_ERROR; 2067 is SQLITE_CONSTRAINT_UNIQUE.
+const isUniqueViolation = (error) => error?.errcode === 2067;
+
+const maxAvatarLength = 2_000_000;
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const phonePattern = /^\+?[0-9\s()-]{6,20}$/;
+
+const readProfile = (userId) => {
+  const row = db.prepare('SELECT id, email, full_name, role, phone, job_title, avatar, created_at FROM users WHERE id = ?').get(userId);
+  return row && { id: row.id, email: row.email, fullName: row.full_name, role: row.role, phone: row.phone ?? '', jobTitle: row.job_title ?? '', avatar: row.avatar ?? null, createdAt: row.created_at };
+};
+
+const validationError = (message) => Object.assign(new Error(message), { status: 400 });
+
+const updateProfile = (userId, { fullName, email, phone, jobTitle, avatar }) => {
+  const current = readProfile(userId);
+  const next = {
+    fullName: fullName === undefined ? current.fullName : String(fullName).trim(),
+    email: email === undefined ? current.email : String(email).trim().toLowerCase(),
+    phone: phone === undefined ? current.phone : String(phone).trim(),
+    jobTitle: jobTitle === undefined ? current.jobTitle : String(jobTitle).trim(),
+    avatar: avatar === undefined ? current.avatar : avatar,
+  };
+  if (!next.fullName || next.fullName.length > 80) throw validationError('Full name must be between 1 and 80 characters.');
+  if (!emailPattern.test(next.email)) throw validationError('Enter a valid email address.');
+  if (next.phone && !phonePattern.test(next.phone)) throw validationError('Enter a valid phone number.');
+  if (next.jobTitle.length > 60) throw validationError('Job title must be 60 characters or fewer.');
+  if (next.avatar !== null && (typeof next.avatar !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(next.avatar) || next.avatar.length > maxAvatarLength)) {
+    throw validationError('Profile picture must be a JPEG, PNG, or WebP image under 1.5 MB.');
+  }
+  try {
+    db.prepare('UPDATE users SET full_name = ?, email = ?, phone = ?, job_title = ?, avatar = ? WHERE id = ?')
+      .run(next.fullName, next.email, next.phone || null, next.jobTitle || null, next.avatar, userId);
+  } catch (error) {
+    if (isUniqueViolation(error)) throw Object.assign(new Error('An account with that email already exists.'), { status: 409 });
+    throw error;
+  }
+  return readProfile(userId);
 };
 
 const requireInternal = (request, response) => {
@@ -454,11 +483,59 @@ const server = createServer(async (request, response) => {
       return json(response, 200, { token: createSession(user.id), user: { id: user.id, email: user.email, fullName: user.full_name, role: user.role } });
     }
 
+    if (request.method === 'POST' && url.pathname === '/auth/forgot') {
+      const { email } = await readBody(request);
+      if (!email?.trim()) return json(response, 400, { error: 'Enter your email address.' });
+      // Same reply whether or not the account exists, so this page can't be used to find out who has one.
+      db.prepare("UPDATE users SET password_reset_requested_at = CURRENT_TIMESTAMP WHERE email = ? AND role = 'worker'").run(email.trim().toLowerCase());
+      return json(response, 200, { ok: true });
+    }
+
+    if (request.method === 'GET' && url.pathname === '/me') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      return json(response, 200, readProfile(user.id));
+    }
+
+    if (request.method === 'PATCH' && url.pathname === '/me') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      return json(response, 200, updateProfile(user.id, await readBody(request)));
+    }
+
+    if (request.method === 'POST' && url.pathname === '/me/password') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      const { currentPassword, newPassword } = await readBody(request);
+      const stored = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id);
+      if (!verifyPassword(currentPassword ?? '', stored?.password_hash)) return json(response, 400, { error: 'Current password is incorrect.' });
+      if (typeof newPassword !== 'string' || newPassword.length < minPasswordLength) return json(response, 400, { error: `New password must be at least ${minPasswordLength} characters.` });
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), user.id);
+      return json(response, 200, { ok: true });
+    }
+
     if (request.method === 'GET' && url.pathname === '/workers') {
       const user = requireUser(request, response);
       if (!user) return;
       if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can view worker details.' });
-      return json(response, 200, db.prepare("SELECT id, full_name AS name, email, role, status, created_at FROM users WHERE role = 'worker' ORDER BY full_name").all());
+      return json(response, 200, db.prepare("SELECT id, full_name AS name, email, role, status, created_at, password_reset_requested_at FROM users WHERE role = 'worker' ORDER BY full_name").all());
+    }
+
+    const workerPasswordMatch = url.pathname.match(/^\/workers\/([^/]+)\/password$/);
+    if (request.method === 'POST' && workerPasswordMatch) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can reset worker passwords.' });
+      const { password } = await readBody(request);
+      if (typeof password !== 'string' || password.length < minPasswordLength) return json(response, 400, { error: `Temporary password must be at least ${minPasswordLength} characters.` });
+      const workerId = workerPasswordMatch[1];
+      const reset = () => {
+        const result = db.prepare("UPDATE users SET password_hash = ?, password_reset_requested_at = NULL WHERE id = ? AND role = 'worker'").run(hashPassword(password), workerId);
+        if (result.changes) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(workerId);
+        return result.changes;
+      };
+      if (!withTransaction(reset)) return json(response, 404, { error: 'Worker not found.' });
+      return json(response, 200, { ok: true });
     }
 
     if (request.method === 'PATCH' && url.pathname.startsWith('/workers/')) {
@@ -540,8 +617,8 @@ const server = createServer(async (request, response) => {
     return json(response, 404, { error: 'Not found.' });
   } catch (error) {
     console.error(error);
-    const status = Number(error?.status ?? 500);
-    return json(response, status, { error: error?.code === 'SQLITE_CONSTRAINT_UNIQUE' ? 'An account with that email already exists.' : error instanceof Error ? error.message : 'Server error.' });
+    const status = Number(error?.status ?? (isUniqueViolation(error) ? 409 : 500));
+    return json(response, status, { error: isUniqueViolation(error) ? 'An account with that email already exists.' : error instanceof Error ? error.message : 'Server error.' });
   }
 });
 

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
+import Avatar from './Avatar';
 
 type WorkerDashboardProps = {
   isDarkTheme: boolean;
@@ -9,6 +10,8 @@ type WorkerDashboardProps = {
   onViewAll: () => void;
   workItems: WorkItem[];
   userName: string;
+  avatar?: string | null;
+  onOpenProfile: () => void;
 };
 
 const stats = [
@@ -17,7 +20,7 @@ const stats = [
   { icon: '👥', value: '5', label: 'Team Size' },
 ];
 
-export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onViewAll, userName, workItems }: WorkerDashboardProps) {
+export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onViewAll, userName, avatar, onOpenProfile, workItems }: WorkerDashboardProps) {
   const theme = isDarkTheme
     ? {
         background: '#07111F', surface: 'rgba(11, 22, 39, 0.92)', border: 'rgba(161, 182, 214, 0.2)',
@@ -51,7 +54,9 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onV
         <View style={[styles.hero, { backgroundColor: theme.hero, borderColor: theme.border }]}>
           <View style={styles.heroTopRow}>
             <View style={styles.identityRow}>
-              <Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+              <Pressable accessibilityLabel="Open profile" onPress={onOpenProfile} hitSlop={6}>
+                <Avatar name={userName} uri={avatar} size={42} backgroundColor={theme.accent} />
+              </Pressable>
               <View>
                 <Text style={[styles.eyebrow, { color: theme.body }]}>Worker Dashboard</Text>
                 <Text style={[styles.name, { color: theme.title }]}>{userName}</Text>
@@ -116,7 +121,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 }, container: { flexGrow: 1, paddingBottom: 36 },
   hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 90, paddingBottom: 20 },
   heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  identityRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }, logo: { width: 38, height: 38, borderRadius: 12 },
+  identityRow: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
   eyebrow: { fontSize: 12, fontWeight: '700' }, name: { fontSize: 16, fontWeight: '900', marginTop: 1 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 7 }, roleButton: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 8 },
   roleButtonText: { fontSize: 11, fontWeight: '800' }, notification: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

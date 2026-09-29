@@ -50,8 +50,11 @@ The API provides:
 
 - `POST /auth/signup`
 - `POST /auth/login`
+- `POST /auth/forgot` (records a worker's password-reset request for their boss)
+- `GET /me`, `PATCH /me` (own profile), `POST /me/password` (change own password)
 - `GET /workers`
 - `PATCH /workers/:id` (boss only; status: `active`, `away`, or `offline`)
+- `POST /workers/:id/password` (boss only; sets a temporary password and signs the worker out)
 - `GET /work`
 - `POST /work`
 - `PATCH /work/:id` (assigned worker or boss; status: `In Progress`, `Review`, or `Done`)
@@ -102,6 +105,14 @@ New signups are workers by default. To create the first boss account, insert one
 ```bash
 node --input-type=module -e "import { DatabaseSync } from 'node:sqlite'; const db = new DatabaseSync('data/bandflow.sqlite'); db.prepare(\"UPDATE users SET role = 'boss' WHERE email = ?\").run('boss@example.com');"
 ```
+
+Passwords are stored only as salted scrypt hashes and cannot be read back. To reset any account's password (for example a boss who forgot theirs), run this on the computer that has the database:
+
+```bash
+npm run reset-password -- boss@example.com NewPassword123
+```
+
+It signs that account out everywhere. Workers can instead use **Forgot password?** in the app; their boss then sets a temporary password from **Manage Workers**.
 
 Back up the Node-owned database regularly:
 

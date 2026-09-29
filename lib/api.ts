@@ -10,7 +10,7 @@ const tokenKey = 'bandflow_api_token';
 
 export type ApiUser = { id: string; email: string; fullName: string; role: 'worker' | 'boss' };
 export type WorkerStatus = 'active' | 'away' | 'offline';
-export type ApiWorker = { id: string; name: string; email?: string; role?: 'worker' | 'boss'; status?: WorkerStatus; created_at?: string };
+export type ApiWorker = { id: string; name: string; email?: string; role?: 'worker' | 'boss'; status?: WorkerStatus; created_at?: string; password_reset_requested_at?: string | null };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await AsyncStorage.getItem(tokenKey);
@@ -30,7 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     }
   }
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+  if (!response.ok) throw Object.assign(new Error(body.error ?? `Request failed (${response.status})`), { status: response.status });
   return body as T;
 }
 
@@ -44,8 +44,39 @@ export async function signup(fullName: string, email: string, password: string) 
   await request('/auth/signup', { method: 'POST', body: JSON.stringify({ fullName, email, password }) });
 }
 
+export async function requestPasswordReset(email: string) {
+  return request<{ ok: true }>('/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) });
+}
+
+export async function resetWorkerPassword(workerId: string, password: string) {
+  return request<{ ok: true }>(`/workers/${workerId}/password`, { method: 'POST', body: JSON.stringify({ password }) });
+}
+
 export async function logout() {
   await AsyncStorage.removeItem(tokenKey);
+}
+
+export type ApiProfile = ApiUser & { phone: string; jobTitle: string; avatar: string | null; createdAt: string };
+export type ProfileUpdate = Partial<Pick<ApiProfile, 'fullName' | 'email' | 'phone' | 'jobTitle' | 'avatar'>>;
+
+export function getApiUrl() {
+  return apiUrl;
+}
+
+export async function checkServer() {
+  return request<{ ok: boolean }>('/health');
+}
+
+export async function getProfile() {
+  return request<ApiProfile>('/me');
+}
+
+export async function updateProfile(update: ProfileUpdate) {
+  return request<ApiProfile>('/me', { method: 'PATCH', body: JSON.stringify(update) });
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  return request<{ ok: true }>('/me/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
 }
 
 export async function getWorkers() {
