@@ -29,6 +29,7 @@
     "start:clean": "expo start --clear",
     "go": "expo start --go",
     "server": "node server/index.mjs",
+    "sync:naprock": "powershell -NoProfile -File scripts/sync-naprock.ps1",
     "dev-client": "expo start --dev-client",
     "android": "expo start --android",
     "ios": "expo start --ios",

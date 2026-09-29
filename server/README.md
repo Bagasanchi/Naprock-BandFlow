@@ -10,7 +10,7 @@ Environment variables:
 
 ```bash
 PORT=8787
-DATABASE_PATH=/var/lib/bandflow/bandflow.db
+DATABASE_PATH=/var/lib/bandflow/bandflow.sqlite
 BLE_BRIDGE_URL=http://127.0.0.1:5000/v1/dispatch
 BLE_INTERNAL_TOKEN=replace-with-a-shared-secret
 AI_BREAKDOWN_URL=
@@ -35,7 +35,7 @@ EXPO_PUBLIC_API_URL=http://bandflow.local:8787
 
 Keep the phone and Pi on the same LAN. Do not use `127.0.0.1` on a physical phone; that points to the phone itself. If a network does not support mDNS, use the Pi's current DHCP address only for that network.
 
-By default, the API opens the project-root `naprock/bandflow.db` regardless of the directory used to start it. The Flask BLE service does not open SQLite or create task records. Set `DATABASE_PATH` when deploying elsewhere.
+By default, the API opens the app workspace's `data/bandflow.sqlite` regardless of the directory used to start it. The Flask BLE service does not open SQLite or create task records. Set `DATABASE_PATH` when deploying elsewhere.
 
 The Node server owns these application tables:
 
@@ -93,18 +93,18 @@ This sequence keeps the existing SQLite data and works after moving to another W
 	npm run start:clean
 	```
 
-6. Log in with any existing account, or use **Create account** first. Do not delete `naprock/bandflow.db` during startup.
+6. Log in with any existing account, or use **Create account** first. Do not delete `data/bandflow.sqlite` during startup.
 
 Flask stores only its durable BLE event queue and current assignment state in the paths configured by `BLE_EVENT_QUEUE_PATH` and `BLE_ASSIGNMENT_STATE_PATH`. These are transport state, not a second task database.
 
 New signups are workers by default. To create the first boss account, insert one directly on the Pi after creating the account:
 
 ```bash
-node --input-type=module -e "import { DatabaseSync } from 'node:sqlite'; const db = new DatabaseSync('naprock/bandflow.db'); db.prepare(\"UPDATE users SET role = 'boss' WHERE email = ?\").run('boss@example.com');"
+node --input-type=module -e "import { DatabaseSync } from 'node:sqlite'; const db = new DatabaseSync('data/bandflow.sqlite'); db.prepare(\"UPDATE users SET role = 'boss' WHERE email = ?\").run('boss@example.com');"
 ```
 
 Back up the Node-owned database regularly:
 
 ```bash
-cp naprock/bandflow.db naprock/bandflow.db.backup
+cp data/bandflow.sqlite data/bandflow.sqlite.backup
 ```

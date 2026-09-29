@@ -1,0 +1,55 @@
+name: Bridge compatibility
+
+on:
+  schedule:
+    - cron: '47 6 * * 1'
+  push:
+    paths:
+      - '.gitmodules'
+      - 'contracts/**'
+      - 'server/**'
+      - 'lib/**'
+      - '.github/workflows/bridge-compatibility.yml'
+  pull_request:
+    paths:
+      - '.gitmodules'
+      - 'contracts/**'
+      - 'server/**'
+      - 'lib/**'
+      - '.github/workflows/bridge-compatibility.yml'
+
+jobs:
+  static-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the app workspace
+        uses: actions/checkout@v4
+
+      - name: Check out the current naprock bridge
+        uses: actions/checkout@v4
+        with:
+          repository: Bagasanchi/naprock
+          path: naprock-bridge
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.x
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Check Node API syntax
+        run: node --check server/index.mjs
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check Flask bridge syntax
+        run: python -m py_compile naprock-bridge/app.py
+
+      - name: Verify the v1 contract is present
+        run: test -s contracts/ble-bridge-v1.md

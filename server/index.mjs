@@ -7,8 +7,9 @@ import { DatabaseSync } from 'node:sqlite';
 
 const port = Number(process.env.PORT ?? 8787);
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const databasePath = process.env.DATABASE_PATH ?? process.env.BAND_FLOW_DB_PATH ?? join(projectRoot, 'naprock', 'bandflow.db');
+const databasePath = process.env.DATABASE_PATH ?? process.env.BAND_FLOW_DB_PATH ?? join(projectRoot, 'data', 'bandflow.sqlite');
 const bleBridgeUrl = (process.env.BLE_BRIDGE_URL ?? 'http://127.0.0.1:5000/v1/dispatch').replace(/\/$/, '');
+const bridgeApiVersion = 'v1';
 const internalToken = process.env.BLE_INTERNAL_TOKEN ?? '';
 const aiBreakdownUrl = (process.env.AI_BREAKDOWN_URL ?? '').replace(/\/$/, '');
 const aiClassificationUrl = (process.env.AI_CLASSIFICATION_URL ?? '').replace(/\/$/, '');
@@ -233,6 +234,11 @@ const requireInternal = (request, response) => {
     json(response, 401, { error: 'Internal token required.' });
     return false;
   }
+  const requestVersion = request.headers['x-bandflow-bridge-version'];
+  if (requestVersion && requestVersion !== bridgeApiVersion) {
+    json(response, 426, { error: `Unsupported bridge contract ${requestVersion}; expected ${bridgeApiVersion}.` });
+    return false;
+  }
   return true;
 };
 
@@ -337,8 +343,8 @@ const sendTaskToBand = async (assignment) => {
   try {
     const response = await fetch(bleBridgeUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(internalToken ? { 'X-BandFlow-Token': internalToken } : {}) },
-      body: JSON.stringify(assignment),
+      headers: { 'Content-Type': 'application/json', 'X-BandFlow-Bridge-Version': bridgeApiVersion, ...(internalToken ? { 'X-BandFlow-Token': internalToken } : {}) },
+      body: JSON.stringify({ ...assignment, bridge_api_version: bridgeApiVersion }),
       signal: AbortSignal.timeout(7000),
     });
     const body = await response.json().catch(() => ({}));
@@ -432,7 +438,7 @@ const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') return json(response, 204, {});
   const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`);
   try {
-    if (request.method === 'GET' && url.pathname === '/health') return json(response, 200, { ok: true, database: databasePath });
+    if (request.method === 'GET' && url.pathname === '/health') return json(response, 200, { ok: true, database: databasePath, bridge_api_version: bridgeApiVersion });
 
     if (request.method === 'POST' && url.pathname === '/auth/signup') {
       const { email, password, fullName } = await readBody(request);

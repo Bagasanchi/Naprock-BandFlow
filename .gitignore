@@ -36,6 +36,8 @@ yarn-error.*
 
 # SQLite server data
 server/data/
+data/*.sqlite-wal
+data/*.sqlite-shm
 
 # typescript
 *.tsbuildinfo
