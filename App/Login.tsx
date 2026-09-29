@@ -152,9 +152,6 @@ export default function Login({ isDarkTheme, onLogin, onBandSSO, onCreateAccount
               returnKeyType="done"
               textContentType="password"
               onSubmitEditing={() => void handleLogin()}
-              onEndEditing={() => {
-                if (email.trim() && password) void handleLogin();
-              }}
               style={[styles.input, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.inputText }]}
             />
 
