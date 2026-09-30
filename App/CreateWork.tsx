@@ -53,7 +53,7 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
       try {
         const workers = await getWorkers();
         if (!isMounted) return;
-        setAvailableWorkers(workers.map((worker) => ({ id: worker.id, name: worker.name, initials: getInitials(worker.name), detail: 'Workspace worker' })));
+        setAvailableWorkers(workers.map((worker) => ({ id: worker.id, name: worker.name, initials: getInitials(worker.name), detail: worker.status === 'away' || worker.status === 'offline' ? `${worker.email ?? ''} · ${worker.status}` : worker.email ?? 'Available' })));
         setIsLoadingWorkers(false);
       } catch (error) {
         if (isMounted) setWorkerLoadError(error instanceof Error ? error.message : 'Worker accounts could not be loaded.');
