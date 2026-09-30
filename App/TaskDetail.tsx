@@ -12,6 +12,7 @@ type TaskDetailProps = {
 };
 
 const priorityColors: Record<string, string> = { High: '#E84545', Medium: '#D99324', Low: '#2EAD72' };
+const eisenhowerLabels: Record<string, string> = { do_first: 'Do first', schedule: 'Schedule', delegate: 'Delegate', eliminate: 'Eliminate' };
 
 export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChanged, onRefresh }: TaskDetailProps) {
   const [isUpdating, setIsUpdating] = useState(false);
@@ -92,6 +93,7 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
               <View style={[styles.priorityDot, { backgroundColor: priorityColor }]} />
               <Text style={[styles.metaText, { color: theme.body }]}>{task.priority} priority</Text>
             </View>
+            {task.eisenhowerCategory ? <Text style={[styles.metaText, { color: theme.body }]}>{eisenhowerLabels[task.eisenhowerCategory] ?? task.eisenhowerCategory}</Text> : null}
             <Text style={[styles.metaText, { color: theme.body }]}>Due {task.due}</Text>
           </View>
 

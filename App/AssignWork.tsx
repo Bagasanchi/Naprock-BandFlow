@@ -10,7 +10,7 @@ type AssignWorkProps = {
   userName: string;
 };
 
-type Worker = { id: string; initials: string; name: string; specialty: string; score: string; reason: string };
+type Worker = { id: string; initials: string; name: string; email: string; status: 'active' | 'away' | 'offline' };
 
 export default function AssignWork({ isDarkTheme, onAssignWork, onBack, userName }: AssignWorkProps) {
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -40,9 +40,8 @@ export default function AssignWork({ isDarkTheme, onAssignWork, onBack, userName
         id: profile.id,
         name: profile.name,
         initials: profile.name.trim().split(/\s+/).map((part: string) => part[0]).join('').slice(0, 2).toUpperCase(),
-        specialty: 'Workspace worker',
-        score: '—',
-        reason: 'Available for assignment',
+        email: profile.email ?? 'Workspace worker',
+        status: profile.status ?? 'active',
         })));
         setSelectedWorker(profiles[0]?.id ?? '');
         setIsLoadingWorkers(false);
@@ -93,13 +92,13 @@ export default function AssignWork({ isDarkTheme, onAssignWork, onBack, userName
             textAlignVertical="top"
             style={[styles.briefInput, { color: theme.title }]}
           />
-          <Text style={[styles.briefHint, { color: theme.muted }]}>A sentence or two is enough for a useful recommendation.</Text>
+          <Text style={[styles.briefHint, { color: theme.muted }]}>A sentence or two is enough. The first line becomes the task title.</Text>
         </View>
 
         <View style={styles.sectionHeader}>
           <View>
             <Text style={[styles.sectionLabel, { color: theme.body }]}>RECOMMENDED OWNER</Text>
-            <Text style={[styles.sectionSubtext, { color: theme.muted }]}>Ranked by skills, workload, and momentum</Text>
+            <Text style={[styles.sectionSubtext, { color: theme.muted }]}>Your workers and their availability</Text>
           </View>
           <Text style={[styles.matchLabel, { color: theme.accent }]}>MATCH</Text>
         </View>
@@ -120,10 +119,10 @@ export default function AssignWork({ isDarkTheme, onAssignWork, onBack, userName
                 <View style={styles.workerCopy}>
                   <View style={styles.nameRow}>
                     <Text style={[styles.workerName, { color: theme.title }]}>{worker.name}</Text>
-                    <Text style={[styles.score, { color: isSelected ? theme.accent : theme.body }]}>{worker.score}</Text>
+                    <Text style={[styles.score, { color: worker.status === 'active' ? theme.green : theme.body }]}>{worker.status}</Text>
                   </View>
-                  <Text style={[styles.specialty, { color: theme.body }]}>{worker.specialty}</Text>
-                  {isSelected && <Text style={[styles.reason, { color: theme.accent }]}>{worker.reason}</Text>}
+                  <Text style={[styles.specialty, { color: theme.body }]} numberOfLines={1}>{worker.email}</Text>
+                  {isSelected && <Text style={[styles.reason, { color: theme.accent }]}>{worker.status === 'active' ? 'Available now' : `Currently ${worker.status}`}</Text>}
                 </View>
                 <View style={[styles.radio, { borderColor: isSelected ? theme.accent : theme.border, backgroundColor: isSelected ? theme.accent : 'transparent' }]}>
                   {isSelected && <View style={styles.radioDot} />}
@@ -191,7 +190,7 @@ const styles = StyleSheet.create({
   workerCopy: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   workerName: { fontSize: 13, fontWeight: '900' },
-  score: { fontSize: 12, fontWeight: '900' },
+  score: { fontSize: 12, fontWeight: '900', textTransform: 'capitalize' },
   specialty: { fontSize: 11, fontWeight: '600', marginTop: 2 },
   reason: { fontSize: 10, fontWeight: '800', marginTop: 3 },
   radio: { width: 20, height: 20, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

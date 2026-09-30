@@ -4,6 +4,7 @@ import { NavigationContainer, useNavigationContainerRef } from '@react-navigatio
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import BandAuth from './BandAuth';
 import BandAuthenticatorApp from './BandAuthenticatorApp';
 import Dashboard from './Dashboard';
@@ -18,7 +19,7 @@ import WorkerTasks from './WorkerTasks';
 import BossProgress from './BossProgress';
 import AssignWork from './AssignWork';
 import WorkerDirectory from './WorkerDirectory';
-import SideMenu from './SideMenu';
+import SideMenu, { type SideMenuShortcut } from './SideMenu';
 import Profile from './Profile';
 import Settings from './Settings';
 import type { BandDelivery, WorkItem } from '../lib/work';
@@ -45,6 +46,7 @@ type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const themeKey = 'bandflow_theme';
 
 type GlobalPageTitleProps = {
   isDarkTheme: boolean;
@@ -75,6 +77,18 @@ function GlobalPageTitle({ isDarkTheme, title }: GlobalPageTitleProps) {
 
 export default function App() {
   const [isDarkTheme, setIsDarkTheme] = useState(true);
+
+  // Remember Dark/Light between launches, like the website does.
+  useEffect(() => {
+    AsyncStorage.getItem(themeKey).then((saved) => {
+      if (saved === 'light') setIsDarkTheme(false);
+    }).catch(() => {});
+  }, []);
+
+  const setTheme = (isDark: boolean) => {
+    setIsDarkTheme(isDark);
+    void AsyncStorage.setItem(themeKey, isDark ? 'dark' : 'light').catch(() => {});
+  };
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [currentRouteName, setCurrentRouteName] = useState<keyof RootStackParamList>('Intro');
   const [profile, setProfile] = useState<api.ApiProfile | null>(null);
@@ -142,6 +156,17 @@ export default function App() {
       `${failed.band?.error ?? 'The BLE bridge did not answer.'}\n\nThe work is saved. To show it on the watch, start the bridge (python app.py in the naprock folder) with the watch switched on.`,
     );
   };
+
+  const menuShortcuts: SideMenuShortcut[] = role === 'boss'
+    ? [
+        { icon: '✏️', title: 'Create Work', detail: 'Define new tasks or projects', onPress: () => navigationRef.navigate('CreateWork') },
+        { icon: '🤖', title: 'Assign Work', detail: 'Pick the right owner', onPress: () => navigationRef.navigate('AssignWork') },
+        { icon: '📈', title: 'Work Progress', detail: 'Team progress at a glance', onPress: () => navigationRef.navigate('BossProgress') },
+        { icon: '👥', title: 'Manage Workers', detail: 'Worker info and availability', onPress: () => navigationRef.navigate('WorkerDirectory') },
+      ]
+    : [
+        { icon: '📋', title: 'All Tasks', detail: 'Everything assigned to you', onPress: () => navigationRef.navigate('WorkerTasks') },
+      ];
 
   const titleByRoute: Record<keyof RootStackParamList, string> = {
     Intro: 'Intro',
@@ -383,7 +408,7 @@ export default function App() {
               <Settings
                 isDarkTheme={isDarkTheme}
                 role={role}
-                onSetDarkTheme={setIsDarkTheme}
+                onSetDarkTheme={setTheme}
                 onBack={() => navigation.goBack()}
                 onLogout={logout}
               />
@@ -406,6 +431,7 @@ export default function App() {
           jobTitle={profile?.jobTitle}
           avatar={profile?.avatar}
           onOpenProfile={() => navigationRef.navigate('Profile')}
+          shortcuts={menuShortcuts}
           onOpenSettings={() => navigationRef.navigate('Settings')}
           onLogout={logout}
         />

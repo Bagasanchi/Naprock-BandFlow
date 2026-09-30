@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from './Avatar';
 import { getRoleTheme, type Role } from '../lib/roleTheme';
+
+export type SideMenuShortcut = { icon: string; title: string; detail: string; onPress: () => void };
 
 type SideMenuProps = {
   isDarkTheme: boolean;
@@ -11,12 +13,13 @@ type SideMenuProps = {
   email?: string;
   jobTitle?: string;
   avatar?: string | null;
+  shortcuts: SideMenuShortcut[];
   onOpenProfile: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
 };
 
-export default function SideMenu({ isDarkTheme, role, name, email, jobTitle, avatar, onOpenProfile, onOpenSettings, onLogout }: SideMenuProps) {
+export default function SideMenu({ isDarkTheme, role, name, email, jobTitle, avatar, shortcuts, onOpenProfile, onOpenSettings, onLogout }: SideMenuProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(320, width * 0.82);
@@ -36,10 +39,25 @@ export default function SideMenu({ isDarkTheme, role, name, email, jobTitle, ava
     });
   };
 
-  const items = [
+  const accountItems: SideMenuShortcut[] = [
     { icon: '👤', title: 'Profile', detail: 'Photo, name, and contact info', onPress: onOpenProfile },
     { icon: '⚙️', title: 'Settings', detail: 'Appearance, password, and connection', onPress: onOpenSettings },
   ];
+
+  const renderItem = (item: SideMenuShortcut) => (
+    <Pressable
+      key={item.title}
+      onPress={() => close(item.onPress)}
+      style={({ pressed }) => [styles.item, { borderColor: theme.border, backgroundColor: pressed ? theme.accentSoft : 'transparent' }]}
+    >
+      <Text style={styles.itemIcon}>{item.icon}</Text>
+      <View style={styles.itemCopy}>
+        <Text style={[styles.itemTitle, { color: theme.title }]}>{item.title}</Text>
+        <Text style={[styles.itemDetail, { color: theme.body }]}>{item.detail}</Text>
+      </View>
+      <Text style={[styles.chevron, { color: theme.body }]}>›</Text>
+    </Pressable>
+  );
 
   return (
     <>
@@ -89,22 +107,11 @@ export default function SideMenu({ isDarkTheme, role, name, email, jobTitle, ava
             </View>
           </View>
 
-          <View style={styles.items}>
-            {items.map((item) => (
-              <Pressable
-                key={item.title}
-                onPress={() => close(item.onPress)}
-                style={({ pressed }) => [styles.item, { borderColor: theme.border, backgroundColor: pressed ? theme.accentSoft : 'transparent' }]}
-              >
-                <Text style={styles.itemIcon}>{item.icon}</Text>
-                <View style={styles.itemCopy}>
-                  <Text style={[styles.itemTitle, { color: theme.title }]}>{item.title}</Text>
-                  <Text style={[styles.itemDetail, { color: theme.body }]}>{item.detail}</Text>
-                </View>
-                <Text style={[styles.chevron, { color: theme.body }]}>›</Text>
-              </Pressable>
-            ))}
-          </View>
+          <ScrollView style={styles.itemsScroll} contentContainerStyle={styles.items} showsVerticalScrollIndicator={false}>
+            {shortcuts.map(renderItem)}
+            <Text style={[styles.sectionHeading, { color: theme.body }]}>ACCOUNT</Text>
+            {accountItems.map(renderItem)}
+          </ScrollView>
 
           <Pressable
             onPress={() => close(onLogout)}
@@ -158,13 +165,15 @@ const styles = StyleSheet.create({
   detail: { fontSize: 12, marginTop: 2 },
   roleChip: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, marginTop: 7 },
   roleChipText: { fontSize: 10, fontWeight: '900' },
-  items: { marginTop: 18, gap: 10 },
+  itemsScroll: { flex: 1, marginTop: 18, marginBottom: 14 },
+  items: { gap: 10 },
+  sectionHeading: { fontSize: 11, fontWeight: '900', letterSpacing: 0.8, marginTop: 6, marginLeft: 4 },
   item: { flexDirection: 'row', alignItems: 'center', minHeight: 64, borderWidth: 1, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
   itemIcon: { fontSize: 20, width: 28, textAlign: 'center' },
   itemCopy: { flex: 1, marginLeft: 10 },
   itemTitle: { fontSize: 14, fontWeight: '800' },
   itemDetail: { fontSize: 11, lineHeight: 15, marginTop: 2 },
   chevron: { fontSize: 22, fontWeight: '600', marginLeft: 6 },
-  logout: { marginTop: 'auto', minHeight: 46, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  logout: { minHeight: 46, borderWidth: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   logoutText: { fontSize: 14, fontWeight: '900' },
 });

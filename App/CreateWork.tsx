@@ -248,10 +248,18 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
 
           <Text style={[styles.sectionLabel, { color: theme.body }]}>SUBTASKS</Text>
           <View style={[styles.subtaskPreview, { borderColor: theme.border }]}>
-            {subtasks.map((item) => (
-              <View key={item} style={styles.previewRow}>
+            {subtasks.map((item, index) => (
+              <View key={`${item}-${index}`} style={styles.previewRow}>
                 <View style={[styles.previewBox, { borderColor: theme.border }]} />
                 <Text style={[styles.previewText, { color: theme.body }]}>{item}</Text>
+                <Pressable
+                  accessibilityLabel={`Remove ${item}`}
+                  hitSlop={8}
+                  onPress={() => setSubtasks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                  style={[styles.removeSubtask, { borderColor: theme.border }]}
+                >
+                  <Text style={[styles.removeSubtaskText, { color: theme.body }]}>×</Text>
+                </Pressable>
               </View>
             ))}
             <View style={styles.addSubtaskRow}>
@@ -276,7 +284,7 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
           disabled={!title.trim() || selectedWorkers.length === 0}
           style={[styles.createButton, { backgroundColor: theme.accent, opacity: title.trim() && selectedWorkers.length > 0 ? 1 : 0.5 }]}
         >
-          <Text style={[styles.createButtonText, { color: theme.accentText }]}>Publish Work  →</Text>
+          <Text style={[styles.createButtonText, { color: theme.accentText }]}>{selectedWorkers.length > 1 ? `Publish to ${selectedWorkers.length} workers  →` : 'Publish Work  →'}</Text>
         </Pressable>
         <Text style={[styles.footerNote, { color: theme.muted }]}>You can refine the details after assigning the work.</Text>
       </ScrollView>
@@ -285,6 +293,8 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
 }
 
 const styles = StyleSheet.create({
+  removeSubtask: { width: 24, height: 24, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' },
+  removeSubtaskText: { fontSize: 16, lineHeight: 18, fontWeight: '600' },
   safeArea: { flex: 1 },
   container: { flexGrow: 1, paddingBottom: 30 },
   hero: { borderTopWidth: 1, borderBottomWidth: 1, paddingHorizontal: 20, paddingTop: 90, paddingBottom: 18 },

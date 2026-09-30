@@ -16,12 +16,6 @@ type WorkerDashboardProps = {
   onRefresh: () => Promise<void>;
 };
 
-const stats = [
-  { icon: '📋', value: '4', label: 'Active Tasks' },
-  { icon: '✅', value: '1', label: 'Completed' },
-  { icon: '👥', value: '5', label: 'Team Size' },
-];
-
 export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onViewAll, userName, avatar, onOpenProfile, onRefresh, workItems }: WorkerDashboardProps) {
   const pullToRefresh = usePullToRefresh(onRefresh);
   const theme = isDarkTheme
@@ -44,10 +38,12 @@ export default function WorkerDashboard({ isDarkTheme, onLogout, onOpenTask, onV
     review: { backgroundColor: theme.reviewBg, color: theme.reviewText },
     done: { backgroundColor: theme.doneBg, color: theme.doneText },
   };
+  const activeTasks = workItems.filter((item) => item.status !== 'Done');
+  const averageProgress = activeTasks.length ? Math.round(activeTasks.reduce((total, item) => total + item.progress, 0) / activeTasks.length) : 0;
   const stats = [
     { icon: '📋', value: String(workItems.filter((item) => item.status !== 'Done').length), label: 'Active Tasks' },
     { icon: '✅', value: String(workItems.filter((item) => item.status === 'Done').length), label: 'Completed' },
-    { icon: '👥', value: workItems.length ? '1' : '0', label: 'Team Size' },
+    { icon: '📈', value: `${averageProgress}%`, label: 'Avg. Progress' },
   ];
   const activeWorkItems = workItems.filter((item) => item.status !== 'Done');
 

@@ -18,6 +18,8 @@ export type WorkItem = {
   subtasks: string[];
   // Server-side subtask state (pending / on the watch / done); empty for work created offline.
   subtaskDetails?: SubtaskDetail[];
+  // AI Eisenhower Matrix category: do_first, schedule, delegate or eliminate (null when not classified).
+  eisenhowerCategory?: string | null;
 };
 
 // What POST /work reports about delivering the first subtask to the wristband.

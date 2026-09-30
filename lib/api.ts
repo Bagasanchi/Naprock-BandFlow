@@ -99,6 +99,7 @@ export async function getWork() {
     assignedTo: row.assigned_to,
     subtasks: parseSubtasks(row.subtasks),
     subtaskDetails: row.subtask_details ?? [],
+    eisenhowerCategory: row.eisenhower_category ?? null,
   }));
 }
 
