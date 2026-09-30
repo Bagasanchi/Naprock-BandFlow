@@ -441,6 +441,40 @@ const processBleEvent = (event) => {
 
 const dispatchNextSubtask = async (next) => next ? sendTaskToBand({ event_id: randomUUID(), task_id: next.task_id, subtask_id: next.id, text: next.description }) : null;
 
+// Ticking a subtask in the app works like DONE on the wristband: progress updates and, when the
+// step on the band is finished, the next ready step becomes active and is sent to the band.
+// Unticking puts the step back to pending and reopens a finished task.
+const setSubtaskDone = (taskId, subtaskId, done) => {
+  let next = null;
+  const transaction = () => {
+    const subtask = db.prepare('SELECT id, status FROM subtasks WHERE id = ? AND task_id = ?').get(subtaskId, taskId);
+    if (!subtask) throw Object.assign(new Error('Subtask not found.'), { status: 404 });
+    if (done) {
+      db.prepare("UPDATE subtasks SET status = 'done', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?").run(subtaskId);
+      db.prepare(`INSERT INTO sync_events (event_id, task_id, subtask_id, event_type, created_at, sync_status, payload)
+        VALUES (?, ?, ?, 'subtask_completed', CURRENT_TIMESTAMP, 'acknowledged', '{"source":"app"}')`).run(randomUUID(), taskId, subtaskId);
+    } else {
+      db.prepare("UPDATE subtasks SET status = 'pending', completed_at = NULL WHERE id = ?").run(subtaskId);
+    }
+    const progress = refreshTaskProgress(taskId);
+    if (progress < 100) {
+      db.prepare("UPDATE tasks SET status = CASE WHEN status = 'Done' THEN 'In Progress' ELSE status END, completed_at = NULL WHERE id = ? AND status = 'Done'").run(taskId);
+      const hasActive = db.prepare("SELECT 1 FROM subtasks WHERE task_id = ? AND status = 'active'").get(taskId);
+      if (!hasActive) {
+        next = findNextReadySubtask(taskId);
+        if (next) {
+          db.prepare("UPDATE subtasks SET status = 'active', started_at = COALESCE(started_at, CURRENT_TIMESTAMP) WHERE id = ?").run(next.id);
+          db.prepare(`INSERT INTO sync_events (event_id, task_id, subtask_id, event_type, created_at, sync_status, payload)
+            VALUES (?, ?, ?, 'subtask_started', CURRENT_TIMESTAMP, 'acknowledged', '{}')`).run(randomUUID(), taskId, next.id);
+        }
+      }
+    }
+    return progress;
+  };
+  const progress = withTransaction(transaction);
+  return { progress, next };
+};
+
 const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', assignedTo, subtasks = [], eisenhowerCategory = null, createdBy }) => {
   if (!title?.trim()) throw new Error('A title is required.');
   if (!allowed.priorities.includes(priority)) throw new Error('Invalid priority.');
@@ -578,6 +612,21 @@ const server = createServer(async (request, response) => {
       if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can assign work.' });
       const body = await readBody(request);
       return json(response, 201, await createTask({ ...body, createdBy: user.id }));
+    }
+
+    const subtaskMatch = url.pathname.match(/^\/work\/([^/]+)\/subtasks\/([^/]+)$/);
+    if (request.method === 'PATCH' && subtaskMatch) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      const [, workId, subtaskId] = subtaskMatch;
+      const { done } = await readBody(request);
+      if (typeof done !== 'boolean') return json(response, 400, { error: 'done must be true or false.' });
+      const work = db.prepare('SELECT id, assigned_to FROM tasks WHERE id = ?').get(workId);
+      if (!work) return json(response, 404, { error: 'Work item not found.' });
+      if (user.role !== 'boss' && work.assigned_to !== user.id) return json(response, 403, { error: 'You can only update work assigned to you.' });
+      const result = setSubtaskDone(workId, subtaskId, done);
+      const band = result.next ? await dispatchNextSubtask(result.next) : null;
+      return json(response, 200, { progress: result.progress, next: result.next, band });
     }
 
     if (request.method === 'PATCH' && url.pathname.startsWith('/work/')) {

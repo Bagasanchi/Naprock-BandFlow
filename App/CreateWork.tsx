@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DatePickerModal from './DatePickerModal';
 import type { WorkItem } from '../lib/work';
 import { getWorkers } from '../lib/api';
 
@@ -104,10 +104,6 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
     })));
   };
 
-  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) setDueDate(selectedDate);
-  };
 
   const theme = isDarkTheme
     ? {
@@ -155,20 +151,27 @@ export default function CreateWork({ isDarkTheme, onPublishWork }: CreateWorkPro
               </Pressable>
             )}
           </View>
-          {showDatePicker && (
-            <View style={[styles.datePickerBox, { borderColor: theme.border, backgroundColor: theme.input }]}>
-              <DateTimePicker
-                value={dueDate ?? new Date()}
-                mode="date"
-                display="default"
-                minimumDate={new Date()}
-                onChange={handleDateChange}
-              />
-              <Pressable onPress={() => setShowDatePicker(false)}>
-                <Text style={[styles.doneDateText, { color: theme.accent }]}>Done</Text>
-              </Pressable>
-            </View>
-          )}
+          <DatePickerModal
+            visible={showDatePicker}
+            value={dueDate}
+            minimumDate={new Date()}
+            colors={{
+              surface: isDarkTheme ? '#26103B' : '#FFFFFF',
+              border: theme.border,
+              title: theme.title,
+              body: theme.body,
+              muted: theme.muted,
+              accent: theme.accent,
+              accentText: theme.accentText,
+              accentSoft: theme.accentSoft,
+              backdrop: isDarkTheme ? 'rgba(5, 0, 12, 0.6)' : 'rgba(47, 10, 75, 0.35)',
+            }}
+            onSelect={(date) => {
+              setDueDate(date);
+              setShowDatePicker(false);
+            }}
+            onClose={() => setShowDatePicker(false)}
+          />
 
           <View style={styles.labelRow}>
             <Text style={[styles.sectionLabel, { color: theme.body }]}>PRIORITY</Text>
@@ -309,8 +312,6 @@ const styles = StyleSheet.create({
   calendarIcon: { fontSize: 20, fontWeight: '900' },
   clearDateButton: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
   clearDateText: { fontSize: 12, fontWeight: '800' },
-  datePickerBox: { borderWidth: 1, borderRadius: 12, padding: 10, alignItems: 'center', marginTop: -8, marginBottom: 20 },
-  doneDateText: { fontSize: 13, fontWeight: '900', paddingVertical: 6 },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   fieldHint: { fontSize: 11, marginBottom: 8 },
   priorityRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },

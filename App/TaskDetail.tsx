@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Avatar from './Avatar';
 import type { SubtaskDetail, WorkItem } from '../lib/work';
 
@@ -9,12 +9,15 @@ type TaskDetailProps = {
   workerName: string;
   onStatusChanged: (status: WorkItem['status']) => Promise<void>;
   onRefresh: () => Promise<void>;
+  onToggleSubtask: (subtaskId: string, done: boolean) => Promise<void>;
 };
 
 const priorityColors: Record<string, string> = { High: '#E84545', Medium: '#D99324', Low: '#2EAD72' };
 const eisenhowerLabels: Record<string, string> = { do_first: 'Do first', schedule: 'Schedule', delegate: 'Delegate', eliminate: 'Eliminate' };
 
-export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChanged, onRefresh }: TaskDetailProps) {
+export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChanged, onRefresh, onToggleSubtask }: TaskDetailProps) {
+  const [togglingId, setTogglingId] = useState('');
+  const [toggleError, setToggleError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const theme = isDarkTheme
@@ -63,6 +66,21 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
       await onStatusChanged(nextStatus);
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // Only server subtasks can be ticked (older work without subtask records shows a read-only list).
+  const canToggle = Boolean(task.subtaskDetails?.length);
+  const toggle = async (subtask: SubtaskDetail) => {
+    if (!canToggle || togglingId) return;
+    setTogglingId(subtask.id);
+    setToggleError('');
+    try {
+      await onToggleSubtask(subtask.id, subtask.status !== 'done');
+    } catch (error) {
+      setToggleError(error instanceof Error ? error.message : 'Could not update the subtask.');
+    } finally {
+      setTogglingId('');
     }
   };
 
@@ -134,17 +152,27 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
             const isDone = subtask.status === 'done';
             const isActive = subtask.status === 'active';
             return (
-              <View key={subtask.id} style={styles.subtaskRow}>
+              <Pressable
+                key={subtask.id}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isDone, busy: togglingId === subtask.id }}
+                disabled={!canToggle || Boolean(togglingId)}
+                onPress={() => void toggle(subtask)}
+                style={({ pressed }) => [styles.subtaskRow, pressed && { opacity: 0.6 }]}
+              >
                 <View style={[styles.checkbox, { borderColor: isDone ? theme.verified : isActive ? theme.progressFill : theme.border, backgroundColor: isDone ? theme.verified : 'transparent' }]}>
-                  {isDone && <Text style={styles.checkmark}>✓</Text>}
+                  {togglingId === subtask.id ? <ActivityIndicator size="small" color={isDone ? theme.actionText : theme.progressFill} /> : isDone && <Text style={[styles.checkmark, { color: theme.actionText }]}>✓</Text>}
                 </View>
                 <Text style={[styles.subtaskText, { color: isActive ? theme.title : theme.body }, isActive && styles.activeSubtask, isDone && styles.completedSubtask]}>{subtask.description}</Text>
                 {isActive && <Text style={[styles.onWatch, { color: theme.progressFill, borderColor: theme.progressFill }]}>On watch</Text>}
-              </View>
+              </Pressable>
             );
           })}
           {subtasks.length === 0 && <Text style={[styles.subtaskText, { color: theme.body }]}>No subtasks were added.</Text>}
-          <Text style={[styles.subtaskHint, { color: theme.body }]}>Steps are completed from the wristband. Pull down to refresh.</Text>
+          {toggleError ? <Text style={[styles.subtaskHint, { color: theme.unverified }]}>{toggleError}</Text> : null}
+          <Text style={[styles.subtaskHint, { color: theme.body }]}>
+            {canToggle ? 'Tap a step to tick it, or finish it on the wristband. The next step is sent to the watch automatically.' : 'Steps are completed from the wristband. Pull down to refresh.'}
+          </Text>
         </View>
 
         <Pressable style={[styles.breakDownButton, { backgroundColor: theme.breakDownBackground }]}>

@@ -381,6 +381,10 @@ export default function App() {
                   task={task}
                   workerName={route.params.workerName}
                   onRefresh={refreshWork}
+                  onToggleSubtask={async (subtaskId, done) => {
+                    await api.setSubtaskDone(task.id, subtaskId, done);
+                    await refreshWork();
+                  }}
                   onStatusChanged={async (status) => {
                     await api.updateWorkStatus(task.id, status);
                     await refreshWork();

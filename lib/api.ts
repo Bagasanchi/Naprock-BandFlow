@@ -114,6 +114,11 @@ function parseSubtasks(value?: string[] | string) {
   }
 }
 
+// Ticks or unticks one subtask. When the step on the wristband is finished, the server sends the next one.
+export async function setSubtaskDone(workId: string, subtaskId: string, done: boolean) {
+  return request<{ progress: number; band: BandDelivery | null }>(`/work/${workId}/subtasks/${subtaskId}`, { method: 'PATCH', body: JSON.stringify({ done }) });
+}
+
 export async function updateWorkStatus(workId: string, status: WorkItem['status']) {
   return request<{ id: string; status: WorkItem['status'] }>(`/work/${workId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
