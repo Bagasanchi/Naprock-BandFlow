@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { hashPassword, minPasswordLength, verifyPassword } from './passwords.mjs';
 
@@ -10,7 +10,9 @@ const port = Number(process.env.PORT ?? 8787);
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const databasePath = process.env.DATABASE_PATH ?? process.env.BAND_FLOW_DB_PATH ?? join(projectRoot, 'data', 'bandflow.sqlite');
 const bleBridgeUrl = (process.env.BLE_BRIDGE_URL ?? 'http://127.0.0.1:5000/v1/dispatch').replace(/\/$/, '');
-const bridgeApiVersion = 'v1';
+// v2 adds the wristband session (pairing + RPC) and an optional band_id on dispatch; v1 bridges are still accepted for events.
+const bridgeApiVersion = 'v2';
+const supportedBridgeVersions = ['v1', 'v2'];
 const internalToken = process.env.BLE_INTERNAL_TOKEN ?? '';
 const aiBreakdownUrl = (process.env.AI_BREAKDOWN_URL ?? '').replace(/\/$/, '');
 const aiClassificationUrl = (process.env.AI_CLASSIFICATION_URL ?? '').replace(/\/$/, '');
@@ -83,6 +85,17 @@ db.exec(`
     created_at TEXT NOT NULL,
     sync_status TEXT NOT NULL DEFAULT 'received' CHECK (sync_status IN ('queued', 'received', 'acknowledged')),
     payload TEXT NOT NULL DEFAULT '{}'
+  );
+  CREATE TABLE IF NOT EXISTS bands (
+    band_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    linked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS band_pairing_codes (
+    code TEXT PRIMARY KEY,
+    band_id TEXT NOT NULL UNIQUE,
+    expires_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS voice_records (
     id TEXT PRIMARY KEY,
@@ -270,8 +283,8 @@ const requireInternal = (request, response) => {
     return false;
   }
   const requestVersion = request.headers['x-bandflow-bridge-version'];
-  if (requestVersion && requestVersion !== bridgeApiVersion) {
-    json(response, 426, { error: `Unsupported bridge contract ${requestVersion}; expected ${bridgeApiVersion}.` });
+  if (requestVersion && !supportedBridgeVersions.includes(requestVersion)) {
+    json(response, 426, { error: `Unsupported bridge contract ${requestVersion}; expected ${supportedBridgeVersions.join(' or ')}.` });
     return false;
   }
   return true;
@@ -383,13 +396,19 @@ const refreshTaskProgress = (taskId) => {
   return progress;
 };
 
+// A step only goes to the wristband linked to the worker it is assigned to.
+const findBandForTask = (taskId) => db.prepare(`SELECT bands.band_id FROM tasks JOIN bands ON bands.user_id = tasks.assigned_to
+  WHERE tasks.id = ?`).get(taskId)?.band_id ?? null;
+
 const sendTaskToBand = async (assignment) => {
   if (!assignment) return { sent: false, error: 'No subtask was available to dispatch.' };
+  const bandId = findBandForTask(assignment.task_id);
+  if (!bandId) return { sent: false, error: 'No wristband is linked to this worker. Link it from Settings in the app.' };
   try {
     const response = await fetch(bleBridgeUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-BandFlow-Bridge-Version': bridgeApiVersion, ...(internalToken ? { 'X-BandFlow-Token': internalToken } : {}) },
-      body: JSON.stringify({ ...assignment, bridge_api_version: bridgeApiVersion }),
+      body: JSON.stringify({ ...assignment, band_id: bandId, bridge_api_version: bridgeApiVersion }),
       signal: AbortSignal.timeout(7000),
     });
     const body = await response.json().catch(() => ({}));
@@ -439,6 +458,18 @@ const processBleEvent = (event) => {
   return { duplicate, next };
 };
 
+// When a work has no step on the band, the next ready step becomes the active one.
+// Returns that step (to be dispatched after the transaction) or null.
+const activateNextIfIdle = (taskId) => {
+  if (db.prepare("SELECT 1 FROM subtasks WHERE task_id = ? AND status = 'active'").get(taskId)) return null;
+  const next = findNextReadySubtask(taskId);
+  if (!next) return null;
+  db.prepare("UPDATE subtasks SET status = 'active', started_at = COALESCE(started_at, CURRENT_TIMESTAMP) WHERE id = ?").run(next.id);
+  db.prepare(`INSERT INTO sync_events (event_id, task_id, subtask_id, event_type, created_at, sync_status, payload)
+    VALUES (?, ?, ?, 'subtask_started', CURRENT_TIMESTAMP, 'acknowledged', '{}')`).run(randomUUID(), taskId, next.id);
+  return next;
+};
+
 const dispatchNextSubtask = async (next) => next ? sendTaskToBand({ event_id: randomUUID(), task_id: next.task_id, subtask_id: next.id, text: next.description }) : null;
 
 // Ticking a subtask in the app works like DONE on the wristband: progress updates and, when the
@@ -459,20 +490,32 @@ const setSubtaskDone = (taskId, subtaskId, done) => {
     const progress = refreshTaskProgress(taskId);
     if (progress < 100) {
       db.prepare("UPDATE tasks SET status = CASE WHEN status = 'Done' THEN 'In Progress' ELSE status END, completed_at = NULL WHERE id = ? AND status = 'Done'").run(taskId);
-      const hasActive = db.prepare("SELECT 1 FROM subtasks WHERE task_id = ? AND status = 'active'").get(taskId);
-      if (!hasActive) {
-        next = findNextReadySubtask(taskId);
-        if (next) {
-          db.prepare("UPDATE subtasks SET status = 'active', started_at = COALESCE(started_at, CURRENT_TIMESTAMP) WHERE id = ?").run(next.id);
-          db.prepare(`INSERT INTO sync_events (event_id, task_id, subtask_id, event_type, created_at, sync_status, payload)
-            VALUES (?, ?, ?, 'subtask_started', CURRENT_TIMESTAMP, 'acknowledged', '{}')`).run(randomUUID(), taskId, next.id);
-        }
-      }
+      next = activateNextIfIdle(taskId);
     }
     return progress;
   };
   const progress = withTransaction(transaction);
   return { progress, next };
+};
+
+// Removes one step from a work. If it was the step on the band, the next ready step takes its place.
+// Must be called by a caller that already checked the user may edit this work.
+const removeSubtask = (taskId, subtaskId) => {
+  let next = null;
+  let wasActive = false;
+  const transaction = () => {
+    const subtask = db.prepare('SELECT id, status FROM subtasks WHERE id = ? AND task_id = ?').get(subtaskId, taskId);
+    if (!subtask) throw Object.assign(new Error('Task not found.'), { status: 404 });
+    const { total } = db.prepare('SELECT COUNT(*) AS total FROM subtasks WHERE task_id = ?').get(taskId);
+    if (total <= 1) throw validationError('A work needs at least one task. Delete the whole work instead.');
+    wasActive = subtask.status === 'active';
+    db.prepare('DELETE FROM subtasks WHERE id = ?').run(subtaskId);
+    const progress = refreshTaskProgress(taskId);
+    if (progress < 100) next = activateNextIfIdle(taskId);
+    return progress;
+  };
+  const progress = withTransaction(transaction);
+  return { progress, next, clearedStep: wasActive && !next };
 };
 
 const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', assignedTo, subtasks = [], eisenhowerCategory = null, createdBy }) => {
@@ -511,6 +554,149 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
 
   const band = await sendTaskToBand(first ? { event_id: randomUUID(), task_id: taskId, subtask_id: first.id, text: first.description } : null);
   return { id: taskId, title: breakdown.title, priority, status: 'In Progress', progress: 0, due: String(due || 'Unscheduled').trim() || 'Unscheduled', eisenhower_category: classification, assignedTo: worker.id, subtasks: normalizedSubtasks.map((item) => item.description), band };
+};
+
+// ---- Wristband session: pairing and the requests the watch makes through the bridge ----------
+
+const bandCodeTtlSeconds = 300;
+const urgentWithinDays = 2;
+// The watch has little memory, so it lists at most this many works per quadrant and says how many more exist.
+const bandListLimit = 12;
+
+// The AI classifier is optional, so works without a category are placed by simple rules instead:
+// urgent = due within two days (or overdue); important = anything above Low priority.
+const daysUntilDue = (due) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(due ?? '');
+  if (!match) return null;
+  const dueDay = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((dueDay.getTime() - today.getTime()) / 86_400_000);
+};
+
+const classifyByRules = ({ priority, due }) => {
+  const days = daysUntilDue(due);
+  const urgent = days !== null && days <= urgentWithinDays;
+  const important = priority !== 'Low';
+  if (important) return urgent ? 'do_first' : 'schedule';
+  return urgent ? 'delegate' : 'eliminate';
+};
+
+const categoryOf = (task) => task.eisenhower_category ?? classifyByRules(task);
+
+// The watch font only has ASCII, so truncation uses three dots rather than an ellipsis character.
+const clip = (text, length) => {
+  const value = String(text ?? '');
+  return value.length > length ? `${value.slice(0, length - 3)}...` : value;
+};
+
+const activeWorkFor = (userId) => db.prepare(`SELECT id, title, priority, status, progress, due, eisenhower_category
+  FROM tasks WHERE assigned_to = ? AND status != 'Done' ORDER BY created_at DESC`).all(userId);
+
+const createBandPairingCode = (bandId) => {
+  const now = Date.now();
+  db.prepare('DELETE FROM band_pairing_codes WHERE expires_at <= ? OR band_id = ?').run(now, bandId);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    try {
+      db.prepare('INSERT INTO band_pairing_codes (code, band_id, expires_at) VALUES (?, ?, ?)').run(code, bandId, now + bandCodeTtlSeconds * 1000);
+      return code;
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
+  throw new Error('Could not create a pairing code.');
+};
+
+// A six-digit code is guessable, and whoever enters it takes over that watch, so failed guesses are limited.
+const maxLinkFailures = 5;
+const linkFailureWindowMs = 10 * 60 * 1000;
+const linkFailures = new Map();
+const isLinkLimited = (userId) => {
+  const entry = linkFailures.get(userId);
+  return Boolean(entry && entry.resetAt > Date.now() && entry.count >= maxLinkFailures);
+};
+const recordLinkFailure = (userId) => {
+  const entry = linkFailures.get(userId);
+  if (!entry || entry.resetAt <= Date.now()) linkFailures.set(userId, { count: 1, resetAt: Date.now() + linkFailureWindowMs });
+  else entry.count += 1;
+};
+
+const linkBandWithCode = (userId, code) => {
+  const row = db.prepare('SELECT band_id FROM band_pairing_codes WHERE code = ? AND expires_at > ?').get(code, Date.now());
+  if (!row) return null;
+  withTransaction(() => {
+    db.prepare('DELETE FROM bands WHERE user_id = ? OR band_id = ?').run(userId, row.band_id);
+    db.prepare('INSERT INTO bands (band_id, user_id) VALUES (?, ?)').run(row.band_id, userId);
+    db.prepare('DELETE FROM band_pairing_codes WHERE band_id = ?').run(row.band_id);
+  });
+  return row.band_id;
+};
+
+const readBandSubtasks = (taskId) => {
+  const task = db.prepare('SELECT id, title, progress FROM tasks WHERE id = ?').get(taskId);
+  const rows = db.prepare('SELECT id, description, status FROM subtasks WHERE task_id = ? ORDER BY order_index').all(taskId);
+  return {
+    work: { id: task.id, title: clip(task.title, 40), progress: task.progress },
+    subtasks: rows.map((row) => ({ id: row.id, d: clip(row.description, 80), s: row.status === 'done' ? 'd' : row.status === 'active' ? 'a' : 'p' })),
+  };
+};
+
+// Every request the watch makes arrives here (via the bridge). Replies are small because they cross BLE.
+const handleBandRequest = async (bandId, request) => {
+  const link = db.prepare('SELECT bands.user_id, users.full_name FROM bands JOIN users ON users.id = bands.user_id WHERE bands.band_id = ?').get(bandId);
+  const type = request?.t;
+  if (link) db.prepare('UPDATE bands SET last_seen_at = CURRENT_TIMESTAMP WHERE band_id = ?').run(bandId);
+
+  if (type === 'status' || type === 'link_status') return link ? { ok: true, linked: true, name: clip(link.full_name, 30) } : { ok: true, linked: false };
+  if (type === 'pair') {
+    if (link) return { ok: true, linked: true, name: clip(link.full_name, 30) };
+    return { ok: true, linked: false, code: createBandPairingCode(bandId), ttl: bandCodeTtlSeconds };
+  }
+  if (!link) return { ok: false, error: 'not_linked' };
+
+  if (type === 'unlink') {
+    db.prepare('DELETE FROM bands WHERE band_id = ?').run(bandId);
+    return { ok: true, linked: false };
+  }
+
+  if (type === 'matrix') {
+    const counts = { do_first: 0, schedule: 0, delegate: 0, eliminate: 0 };
+    for (const task of activeWorkFor(link.user_id)) counts[categoryOf(task)] += 1;
+    return { ok: true, counts };
+  }
+
+  if (type === 'works') {
+    if (!allowed.eisenhower.includes(request.cat)) return { ok: false, error: 'Unknown quadrant.' };
+    const matching = activeWorkFor(link.user_id).filter((task) => categoryOf(task) === request.cat);
+    return {
+      ok: true,
+      cat: request.cat,
+      more: Math.max(0, matching.length - bandListLimit),
+      works: matching.slice(0, bandListLimit).map((task) => ({
+        id: task.id,
+        title: clip(task.title, 40),
+        p: task.progress,
+        pr: task.priority[0],
+        due: task.due === 'Unscheduled' ? '' : task.due,
+      })),
+    };
+  }
+
+  if (type === 'subtasks' || type === 'remove') {
+    const work = db.prepare('SELECT id, assigned_to FROM tasks WHERE id = ?').get(String(request.work ?? ''));
+    if (!work || work.assigned_to !== link.user_id) return { ok: false, error: 'Work not found.' };
+    if (type === 'subtasks') return { ok: true, ...readBandSubtasks(work.id) };
+    try {
+      const result = removeSubtask(work.id, String(request.sub ?? ''));
+      if (result.next) await dispatchNextSubtask(result.next);
+      return { ok: true, clear_step: result.clearedStep, ...readBandSubtasks(work.id) };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not remove the task.' };
+    }
+  }
+
+  return { ok: false, error: 'Unknown request.' };
 };
 
 const server = createServer(async (request, response) => {
@@ -650,6 +836,18 @@ const server = createServer(async (request, response) => {
       return json(response, 200, { id: workId, status });
     }
 
+    if (request.method === 'DELETE' && subtaskMatch) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      const [, workId, subtaskId] = subtaskMatch;
+      const work = db.prepare('SELECT id, assigned_to FROM tasks WHERE id = ?').get(workId);
+      if (!work) return json(response, 404, { error: 'Work item not found.' });
+      if (user.role !== 'boss' && work.assigned_to !== user.id) return json(response, 403, { error: 'You can only edit work assigned to you.' });
+      const result = removeSubtask(workId, subtaskId);
+      const band = result.next ? await dispatchNextSubtask(result.next) : null;
+      return json(response, 200, { progress: result.progress, next: result.next, band });
+    }
+
     if (request.method === 'DELETE' && url.pathname.startsWith('/work/')) {
       const user = requireUser(request, response);
       if (!user) return;
@@ -666,6 +864,47 @@ const server = createServer(async (request, response) => {
       const result = processBleEvent(event);
       const band = result.next ? await dispatchNextSubtask(result.next) : null;
       return json(response, 200, { acknowledged: true, duplicate: result.duplicate, next: result.next, band });
+    }
+
+    if (request.method === 'GET' && url.pathname === '/band/link') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      const band = db.prepare('SELECT linked_at, last_seen_at FROM bands WHERE user_id = ?').get(user.id);
+      return json(response, 200, { linked: Boolean(band), linkedAt: band?.linked_at ?? null, lastSeenAt: band?.last_seen_at ?? null });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/band/link') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      if (user.role !== 'worker') return json(response, 403, { error: 'Only workers link a wristband.' });
+      if (isLinkLimited(user.id)) return json(response, 429, { error: 'Too many wrong codes. Wait a few minutes and try again.' });
+      const code = String((await readBody(request)).code ?? '').replace(/\s+/g, '');
+      if (!/^\d{6}$/.test(code)) return json(response, 400, { error: 'Enter the 6-digit code shown on the watch.' });
+      const bandId = linkBandWithCode(user.id, code);
+      if (!bandId) {
+        recordLinkFailure(user.id);
+        return json(response, 400, { error: 'That code is wrong or has expired. Check the code on the watch.' });
+      }
+      linkFailures.delete(user.id);
+      // A step that became active before the band was linked never reached it, so send it now.
+      const pending = db.prepare(`SELECT subtasks.id, subtasks.task_id, subtasks.description FROM subtasks JOIN tasks ON tasks.id = subtasks.task_id
+        WHERE tasks.assigned_to = ? AND subtasks.status = 'active' ORDER BY subtasks.started_at LIMIT 1`).get(user.id);
+      const band = pending ? await sendTaskToBand({ event_id: randomUUID(), task_id: pending.task_id, subtask_id: pending.id, text: pending.description }) : null;
+      return json(response, 200, { linked: true, band });
+    }
+
+    if (request.method === 'DELETE' && url.pathname === '/band/link') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      db.prepare('DELETE FROM bands WHERE user_id = ?').run(user.id);
+      return json(response, 200, { linked: false });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/internal/band/rpc') {
+      if (!requireInternal(request, response)) return;
+      const { band_id: bandId, request: bandRequest } = await readBody(request);
+      if (typeof bandId !== 'string' || !bandId.trim() || !bandRequest || typeof bandRequest !== 'object') return json(response, 400, { error: 'band_id and request are required.' });
+      return json(response, 200, await handleBandRequest(bandId.trim().toLowerCase(), bandRequest));
     }
 
     if (request.method === 'POST' && url.pathname === '/voice/records') {

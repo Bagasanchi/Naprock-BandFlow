@@ -3,6 +3,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, SafeAreaV
 import Constants from 'expo-constants';
 import { changePassword, checkServer, getApiUrl } from '../lib/api';
 import { getRoleTheme, type Role } from '../lib/roleTheme';
+import WristbandLink from './WristbandLink';
 
 type SettingsProps = {
   isDarkTheme: boolean;
@@ -117,6 +118,13 @@ export default function Settings({ isDarkTheme, role, onSetDarkTheme, onBack, on
             ) : null}
             {passwordMessage ? <Text style={[styles.message, { color: passwordMessage.isError ? theme.danger : theme.success }]}>{passwordMessage.text}</Text> : null}
           </View>
+
+          {role === 'worker' ? (
+            <>
+              <Text style={[styles.sectionLabel, { color: theme.body }]}>WRISTBAND</Text>
+              <WristbandLink theme={theme} placeholderColor={placeholderColor} />
+            </>
+          ) : null}
 
           <Text style={[styles.sectionLabel, { color: theme.body }]}>CONNECTION</Text>
           <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>

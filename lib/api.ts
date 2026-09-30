@@ -142,3 +142,22 @@ export async function restoreSession() {
     return null;
   }
 }
+
+export type BandLinkStatus = { linked: boolean; linkedAt: string | null; lastSeenAt: string | null };
+
+export async function getBandLink() {
+  return request<BandLinkStatus>('/band/link');
+}
+
+// Links the watch that is showing this 6-digit code to the signed-in worker's account.
+export async function linkBand(code: string) {
+  return request<{ linked: true; band: BandDelivery | null }>('/band/link', { method: 'POST', body: JSON.stringify({ code }) });
+}
+
+export async function unlinkBand() {
+  return request<{ linked: false }>('/band/link', { method: 'DELETE' });
+}
+
+export async function deleteSubtask(workId: string, subtaskId: string) {
+  return request<{ progress: number; band: BandDelivery | null }>(`/work/${workId}/subtasks/${subtaskId}`, { method: 'DELETE' });
+}
