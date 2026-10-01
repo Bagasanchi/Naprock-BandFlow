@@ -129,7 +129,7 @@ export async function deleteWork(workId: string) {
 
 // assignedTo is the worker's account id, so two workers with the same name never get each other's work.
 export async function createWork(work: { title: string; priority: WorkItem['priority']; due?: string; subtasks?: string[]; assignedTo: string }) {
-  return request<{ id: string; band: BandDelivery }>('/work', { method: 'POST', body: JSON.stringify(work) });
+  return request<{ id: string; band: BandDelivery; ai?: { used: boolean; steps?: number; error?: string } }>('/work', { method: 'POST', body: JSON.stringify(work) });
 }
 
 // Restores the previous login when the app starts; null when there is no valid saved session.

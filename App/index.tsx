@@ -145,15 +145,18 @@ export default function App() {
     }
   };
 
-  const reportBandDelivery = (results: Array<{ band?: BandDelivery }>) => {
+  const reportBandDelivery = (results: Array<{ band?: BandDelivery; ai?: { used: boolean; steps?: number; error?: string } }>) => {
+    // What the AI planner did with the title, when no steps were typed in.
+    const ai = results[0]?.ai;
+    const aiNote = ai?.used ? `BandFlow split it into ${ai.steps} steps. ` : ai?.error ? `AI steps were not added (${ai.error}) ` : '';
     const failed = results.find((result) => !result.band?.sent);
     if (!failed) {
-      Alert.alert('Work published', results.length > 1 ? `${results.length} tasks were created. The wristband shows the most recent one.` : 'The first step is now on the wristband.');
+      Alert.alert('Work published', aiNote + (results.length > 1 ? `${results.length} tasks were created. The wristband shows the most recent one.` : 'The first step is now on the wristband.'));
       return;
     }
     Alert.alert(
       'Work saved, not on the wristband',
-      `${failed.band?.error ?? 'The BLE bridge did not answer.'}\n\nThe work is saved. To show it on the watch, start the bridge (python app.py in the naprock folder) with the watch switched on.`,
+      `${aiNote}${failed.band?.error ?? 'The BLE bridge did not answer.'}\n\nThe work is saved. To show it on the watch, start the bridge (python app.py in the naprock folder) with the watch switched on.`,
     );
   };
 

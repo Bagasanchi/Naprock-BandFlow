@@ -64,7 +64,11 @@ The API provides:
 
 When `POST /work` succeeds, the Node API validates the structured subtask response, stores the task and subtasks in one transaction, marks the first ready subtask active, and forwards it to the Flask BLE bridge. If the bridge is offline, the work remains saved and the response includes `band.sent: false`. When Flask later sends a `subtask_completed` event, Node marks it done, calculates progress, selects the next dependency-ready subtask, and dispatches it.
 
-The optional AI services are provider-neutral. `AI_BREAKDOWN_URL` receives `{ title, priority, due, subtasks }` and must return `{ title, subtasks: [{ description, order_index, depends_on_order_index }] }`. `AI_CLASSIFICATION_URL` receives `{ title, priority, due }` and must return `{ category }`, where the category is one of `do_first`, `schedule`, `delegate`, or `eliminate`. Every response is validated before database writes. If no breakdown URL is configured, the server uses the subtasks supplied by the app, or creates one structured subtask from the title.
+## AI task planning
+
+Set `GEMINI_API_KEY` in `.env` (a free key from <https://aistudio.google.com> works) and `npm run server` loads it. When work is created **without subtasks**, the server asks Gemini to split the title into 3 to 6 short steps for the wristband and to pick the Eisenhower category (`server/ai.mjs`). Steps typed by the boss are always kept as they are. If the AI call fails or the free limit is reached, the work is still created with the title as its only step, and the response says why in `ai.error`. `GEMINI_MODEL` sets the model tried first; when a free model is busy the server falls back to the other free Flash models. On the free tier Google may use the content to improve its products, so keep private details out of task titles.
+
+The provider-neutral services below take over when `AI_BREAKDOWN_URL` is set. `AI_BREAKDOWN_URL` receives `{ title, priority, due, subtasks }` and must return `{ title, subtasks: [{ description, order_index, depends_on_order_index }] }`. `AI_CLASSIFICATION_URL` receives `{ title, priority, due }` and must return `{ category }`, where the category is one of `do_first`, `schedule`, `delegate`, or `eliminate`. Every response is validated before database writes. If no breakdown URL is configured, the server uses the subtasks supplied by the app, or creates one structured subtask from the title.
 
 ## Safe startup
 

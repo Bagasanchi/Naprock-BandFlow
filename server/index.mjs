@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { hashPassword, minPasswordLength, verifyPassword } from './passwords.mjs';
+import { aiPlanningEnabled, planTask } from './ai.mjs';
 
 const port = Number(process.env.PORT ?? 8787);
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -526,8 +527,24 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
   if (!worker) throw new Error('Worker not found.');
   if (eisenhowerCategory != null && !allowed.eisenhower.includes(eisenhowerCategory)) throw new Error('Invalid Eisenhower category.');
 
-  const breakdown = await requestAiBreakdown({ title: title.trim(), priority, due: String(due || 'Unscheduled'), subtasks });
-  const classification = eisenhowerCategory ?? await requestAiClassification({ title: breakdown.title, priority, due });
+  // When the boss gave no steps, let the built-in AI planner (server/ai.mjs) write them.
+  // Its failure never blocks the work: the task is then created with the title as its only step.
+  let breakdown = null;
+  let aiCategory = null;
+  let ai = { used: false };
+  if (!parseSubtasks(subtasks).length && !aiBreakdownUrl && aiPlanningEnabled) {
+    try {
+      const plan = await planTask({ title: title.trim(), priority, due: String(due || 'Unscheduled') });
+      breakdown = { title: title.trim(), subtasks: plan.steps.map((description, index) => ({ description, order_index: index + 1, depends_on_order_index: null })) };
+      aiCategory = allowed.eisenhower.includes(plan.category) ? plan.category : null;
+      ai = { used: true, steps: plan.steps.length };
+    } catch (error) {
+      console.error('AI planning failed:', error instanceof Error ? error.message : error);
+      ai = { used: false, error: error instanceof Error ? error.message : 'AI planning failed.' };
+    }
+  }
+  breakdown ??= await requestAiBreakdown({ title: title.trim(), priority, due: String(due || 'Unscheduled'), subtasks });
+  const classification = eisenhowerCategory ?? aiCategory ?? await requestAiClassification({ title: breakdown.title, priority, due });
   const normalizedSubtasks = validateBreakdown(breakdown, title).subtasks;
   if (!normalizedSubtasks.length) throw new Error('At least one valid subtask is required.');
   const taskId = randomUUID();
@@ -553,7 +570,7 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
   withTransaction(transaction);
 
   const band = await sendTaskToBand(first ? { event_id: randomUUID(), task_id: taskId, subtask_id: first.id, text: first.description } : null);
-  return { id: taskId, title: breakdown.title, priority, status: 'In Progress', progress: 0, due: String(due || 'Unscheduled').trim() || 'Unscheduled', eisenhower_category: classification, assignedTo: worker.id, subtasks: normalizedSubtasks.map((item) => item.description), band };
+  return { id: taskId, title: breakdown.title, priority, status: 'In Progress', progress: 0, due: String(due || 'Unscheduled').trim() || 'Unscheduled', eisenhower_category: classification, assignedTo: worker.id, subtasks: normalizedSubtasks.map((item) => item.description), band, ai };
 };
 
 // ---- Wristband session: pairing and the requests the watch makes through the bridge ----------
