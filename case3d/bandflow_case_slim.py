@@ -4,7 +4,7 @@ Walls 1.2 mm (3 perimeters @0.4 nozzle), top plate 1.0, back plate 1.4, M1.6 scr
 """
 import cadquery as cq, os
 
-L, W, H = 77.0, 35.0, 15.0           # safe zone
+L, W, H = 77.0, 35.0, 14.0           # safe zone
 C = 0.2                               # clearance per side
 WALL = 1.2                            # all four side walls
 TOP_T, BACK_T = 1.0, 1.4              # plate over the screen, back plate
@@ -35,16 +35,20 @@ for sx in (-SCREW_DX, SCREW_DX):
         screws.append((px, py))
         y_in = cy + sgn * (cav[1] / 2)
         y_out = cy + sgn * (cav[1] / 2 + PAD_OUT)
-        pad = box(px - PAD_X / 2, px + PAD_X / 2, min(y_in, y_out), max(y_in, y_out), z_back, -5.5).edges("|Z").fillet(1.0)
+        pad = box(px - PAD_X / 2, px + PAD_X / 2, min(y_in, y_out), max(y_in, y_out), z_back, -5.0).edges("|Z").fillet(1.0)
         shell = shell.union(pad)
 
-# lugs on the two long sides (same shape as the styled case, thinner)
+# lugs on the two long sides: spring-bar hole sits LOW, 3 mm above the case bottom, tip flush with the bottom
+HOLE_Z = z_back + 3.0
 def lug(yc):
+    cxh, r = -7.2, 3.0                                   # hole centre (x relative to the end face) and tip radius
+    p135 = (cxh - r * 0.7071, HOLE_Z + r * 0.7071)
     prof = (cq.Workplane("XZ").workplane(offset=-(yc + LUG_W / 2))
-            .moveTo(3.0, 0.6).spline([(-3.0, 0.4), (-8.0, -2.0), (-10.6, -5.0)], includeCurrent=True)
-            .threePointArc((-11.0, -7.6), (-9.2, -10.2))
-            .spline([(-5.0, -12.6), (3.0, -13.6)], includeCurrent=True).close().extrude(LUG_W))
-    hole = cq.Workplane("XZ").workplane(offset=-(yc + LUG_W)).center(-7.2, -6.2).circle(0.9).extrude(LUG_W * 2)
+            .moveTo(3.0, 0.6)
+            .spline([p135], tangents=[(-1, -0.12), (-0.7071, -0.7071)], includeCurrent=True)
+            .threePointArc((cxh - r, HOLE_Z), (cxh, HOLE_Z - r))
+            .lineTo(3.0, z_back).close().extrude(LUG_W))
+    hole = cq.Workplane("XZ").workplane(offset=-(yc + LUG_W)).center(cxh, HOLE_Z).circle(0.9).extrude(LUG_W * 2)
     return prof.cut(hole)
 off = STRAP / 2 + LUG_W / 2
 base = None
@@ -72,9 +76,9 @@ shell = shell.cut(box(18 - tw / 2, 18 + tw / 2, y_out - 1, -W + 0.5, -5 - th / 2
 shell = shell.cut(cq.Workplane("XZ").workplane(offset=-y_out - 0.5).center(18, -5).rect(tw, th)
                   .workplane(offset=0.5).rect(tw + 1, th + 1).loft(combine=True))
 
-# M1.6 pilot holes (1.4 mm, 8 mm deep)
+# M1.6 pilot holes (1.4 mm, 7 mm deep; use M1.6 x 6 mm screws)
 for (sx, sy) in screws:
-    shell = shell.cut(cq.Workplane("XY").workplane(offset=z_back - 0.1).center(sx, sy).circle(0.7).extrude(8.1))
+    shell = shell.cut(cq.Workplane("XY").workplane(offset=z_back - 0.1).center(sx, sy).circle(0.7).extrude(7.1))
 
 # ---------------- back plate ----------------
 zb0 = z_back - BACK_T
