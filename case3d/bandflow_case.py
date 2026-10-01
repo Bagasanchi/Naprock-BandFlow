@@ -32,7 +32,7 @@ shell = outline(OW, OH, R_PLAN, z_back, z_top).faces(">Z").edges().fillet(1.2)
 ring = outline(OW + 2, OH + 2, R_PLAN + 1, -14.2, -13.7).cut(outline(OW - 0.8, OH - 0.8, R_PLAN - 0.4, -14.3, -13.6))
 shell = shell.cut(ring)
 
-# sculpted integrated lugs (side profile in XZ), spring-bar holes
+# sculpted integrated lugs (profile in XZ, built for an end face, then rotated), spring-bar holes
 def lug(yc):
     prof = (cq.Workplane("XZ").workplane(offset=-(yc + LUG_W / 2))
             .moveTo(3.0, 1.0)
@@ -43,13 +43,15 @@ def lug(yc):
     hole = cq.Workplane("XZ").workplane(offset=-(yc + LUG_W)).center(-7.2, -6.2).circle(0.9).extrude(LUG_W * 2)
     return prof.cut(hole)
 off = STRAP / 2 + LUG_W / 2
-shift = (cx - OW / 2) - (-3.2)        # profile is drawn for an outer face at x=-3.2
-left = None
-for yc in (cy + off, cy - off):
+# lugs sit on the two long sides (strap runs across the short axis, screen reads landscape)
+shift = -OH / 2 - (-3.2)               # profile is drawn for an outer face at x=-3.2
+base = None
+for yc in (off, -off):
     l = lug(yc).translate((shift, 0, 0))
-    left = l if left is None else left.union(l)
-right = left.mirror("YZ", basePointVector=(cx, 0, 0))
-shell = shell.union(left).union(right)
+    base = l if base is None else base.union(l)
+base = base.rotate((0, 0, 0), (0, 0, 1), 90).translate((cx, cy, 0))     # outer face -> bottom long side
+other = base.mirror("XZ", basePointVector=(0, cy, 0))                   # top long side
+shell = shell.union(base).union(other)
 
 # cavity (safe zone + clearance)
 shell = shell.cut(box(cx - cav[0] / 2, cx + cav[0] / 2, cy - cav[1] / 2, cy + cav[1] / 2, z_bot_cav, z_top_cav))
@@ -102,7 +104,7 @@ except Exception as e:
 # ---------------- verification ----------------
 safe = box(0, L, -W, 0, -H, 0)
 v = lambda s: s.val().Volume()
-print("outer size: %.1f x %.1f x %.1f mm (lugs add ~11 each end)" % (OW, OH, z_top - zb0))
+print("outer size: %.1f x %.1f x %.1f mm (lugs add ~11 on each long side)" % (OW, OH, z_top - zb0))
 print("safe-zone overlap with shell (must be 0): %.4f mm3" % v(safe.intersect(shell)))
 print("safe-zone overlap with back plate (must be 0): %.4f mm3" % v(safe.intersect(back)))
 exact_openings = [box(8, 66, -34, -3, 0, 5),                       # screen
