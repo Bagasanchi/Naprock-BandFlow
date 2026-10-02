@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BandFlow A0 Poster</title>
+<style>
+@page{size:841mm 1189mm;margin:0}
+:root{--ink:#241038;--muted:#6b5a80;--p1:#2b0b4d;--p2:#5a1a92;--acc:#a73be0;--acc2:#d9a4f5;--soft:#f1e7fb;--line:#e3d4f3;--ok:#14936b;--okbg:#dcf5ec;--warn:#b7791f;--warnbg:#fff1d6;--bad:#c0392b;--badbg:#fde4e0;--blue:#2d6fd6;--bg:#f4f0fa}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:841mm;height:1189mm;overflow:hidden;background:var(--bg)}
+body{font-family:'Inter','Liberation Sans','DejaVu Sans',Arial,sans-serif;color:var(--ink)}
+#poster{width:1500px;height:2119px;transform:scale(2.1189);transform-origin:0 0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.hdr{background:linear-gradient(120deg,#1e0638 0%,#3f0f6e 55%,#6a1fa6 100%);color:#fff;padding:28px 46px 0;position:relative;height:226px;flex:none}
+.pill{display:inline-block;border:1.5px solid rgba(255,255,255,.45);border-radius:30px;padding:7px 20px;font-size:15px;letter-spacing:.14em;font-weight:700}
+h1{font-size:84px;line-height:1;margin-top:10px;font-weight:800;letter-spacing:-.02em}
+h1 span{color:#e6a6ff}
+.tag{font-size:28px;font-weight:700;margin-top:6px;color:#f3d9ff}
+.sub{font-size:22px;margin-top:6px;opacity:.92}
+.feat{position:absolute;left:46px;top:222px;display:grid;grid-template-columns:repeat(3,300px);gap:8px 10px}
+.feat div{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:6px 10px;font-size:12.5px;line-height:1.25;height:36px;overflow:hidden}
+.feat b{display:block;font-size:13.5px;color:#fff}
+.feat div span{color:#dcc3f2}
+.band{position:absolute;right:56px;top:8px;width:470px;height:200px}
+.watch{position:absolute;left:165px;top:38px;width:140px;height:132px;background:#0c0517;border-radius:34px;border:5px solid #26143f;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 0 40px rgba(190,90,255,.5)}
+.watch small{font-size:9px;letter-spacing:.12em;color:#8ebcff;font-weight:700}
+.watch b{font-size:15px;line-height:1.1;margin:3px 8px 6px}
+.watch i{font-style:normal;background:#7ce1bb;color:#04111f;font-weight:800;font-size:13px;border-radius:7px;padding:4px 18px}
+.node{position:absolute;width:130px;font-size:12px;line-height:1.2;color:#e8d3fa}
+.node b{display:block;font-size:15px;color:#fff}
+.node em{font-style:normal;display:inline-block;width:24px;height:24px;border-radius:50%;background:var(--acc);text-align:center;line-height:24px;font-size:13px;font-weight:800;margin-right:6px}
+.strip{background:#1a0630;color:#e9d6f9;font-size:13px;display:flex;justify-content:space-between;align-items:center;padding:4px 46px;flex:none;height:40px}
+.strip .st b{color:#ffcf6a}
+.strip .team b{color:#fff}
+.body{flex:1;padding:9px 28px 0;display:flex;flex-direction:column;gap:7px;min-height:0}
+.row{display:flex;gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;position:relative;box-shadow:0 2px 6px rgba(70,20,110,.07)}
+.card h2{font-size:26px;display:flex;align-items:center;gap:10px;font-weight:800;line-height:1.1}
+.n{flex:none;width:30px;height:30px;border-radius:50%;background:var(--p1);color:#fff;font-size:16px;text-align:center;line-height:30px;font-weight:800}
+.chip{position:absolute;right:14px;top:12px;font-size:12.5px;font-weight:700;border-radius:20px;padding:4px 12px;background:var(--soft);color:var(--p2)}
+.chip.g{background:var(--okbg);color:var(--ok)} .chip.w{background:var(--warnbg);color:var(--warn)}
+p,li{font-size:15px;line-height:1.35;color:#3d2c52}
+.note{font-size:13px;color:var(--muted)}
+/* 01 */
+.tasks{margin-top:8px;display:flex;gap:14px;align-items:center}
+.stack div{background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13.5px;margin:3px 0;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;justify-content:space-between;gap:14px}
+.stack div b{color:var(--bad)}
+.q{background:var(--p1);color:#fff;font-size:21px;font-weight:800;border-radius:12px;padding:8px 14px;text-align:center}
+.pains{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px}
+.pains span{background:var(--badbg);color:var(--bad);border-radius:8px;padding:4px 6px;font-size:13.5px;font-weight:700;text-align:center}
+/* 02 */
+.flow{display:flex;align-items:center;justify-content:space-between;margin:6px 0 4px}
+.flow .s{text-align:center;font-size:14px;font-weight:700;width:120px}
+.flow .s i{display:block;width:30px;height:30px;border-radius:9px;background:var(--soft);margin:0 auto 1px;font-style:normal;font-size:17px;line-height:30px;color:var(--p2)}
+.flow .ar{color:var(--acc);font-size:24px}
+table{border-collapse:collapse;width:100%}
+td,th{font-size:13.5px;padding:3px 8px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-size:13px;color:var(--muted)} th.bf{background:var(--acc);color:#fff;border-radius:6px 6px 0 0}
+td.bf{background:#f6e9fe;font-weight:700;color:var(--p1)}
+/* 03 */
+.users{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:6px}
+.u{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.u img,.u svg{width:100%;height:78px;object-fit:cover;display:block;background:var(--soft)}
+.u div{padding:4px 9px 5px}
+.u b{font-size:15.5px;display:block}
+.u small{font-size:12.5px;color:var(--muted);display:block}
+.u em{font-style:normal;font-size:12px;font-weight:800;border-radius:12px;padding:2px 9px;background:var(--soft);color:var(--p2);display:inline-block;margin:3px 3px 3px 0}
+.u strong{font-size:12.5px;color:var(--ok);display:block;line-height:1.25}
+.cap{position:absolute;right:18px;top:20px;font-size:12px;color:var(--muted);font-style:italic}
+/* 04 */
+.steps{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:6px}
+.stp{text-align:center;padding:0 4px}
+.stp i{display:block;width:34px;height:34px;border-radius:50%;margin:0 auto 2px;color:#fff;font-style:normal;font-size:17px;font-weight:800;line-height:34px}
+.stp small{display:block;font-size:11.5px;letter-spacing:.1em;color:var(--muted);font-weight:700}
+.stp b{font-size:18px;display:block}
+.stp p{font-size:13px;line-height:1.25;margin-top:2px}
+.ex{margin-top:5px;background:var(--soft);border-radius:10px;padding:5px 10px;display:flex;align-items:center;gap:8px;font-size:13.5px}
+.ex b{color:var(--p1);width:200px;font-size:12.5px;flex:none;line-height:1.2}
+.ex span{background:#fff;border:1px solid var(--line);border-radius:7px;padding:3px 7px;flex:1;line-height:1.2}
+.ex span.on{border-color:var(--acc);border-width:2px;font-weight:700}
+.loop{font-size:13px;color:var(--p2);font-weight:700;text-align:center;margin-top:3px}
+/* 05 */
+.arch{position:relative;margin-top:4px;height:196px;width:1066px;flex:none}
+.bx{position:absolute;border-radius:10px;padding:7px 10px;font-size:13px;line-height:1.25;border:1.5px solid var(--line);background:#fff}
+.bx b{display:block;font-size:15.5px}
+.bx.cl{border-style:dashed;border-color:#e0a93a;background:#fff8e8}
+.bx.pi{background:var(--p1);color:#fff;border-color:var(--p1)}
+.bx.pi b{color:#fff}
+.bx.pi .in{background:#fff;color:var(--ink);border-radius:8px;padding:5px 8px;margin-top:6px;font-size:13px}
+.bx.pi .in b{font-size:14.5px;color:var(--p1)}
+.bx.band2{border-color:var(--acc);background:#fbf3ff}
+.lbl{position:absolute;font-size:12.5px;font-weight:800;color:var(--p2);text-align:center}
+.arw{position:absolute;color:var(--acc);font-size:30px;line-height:1;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chips span{background:var(--soft);color:var(--p1);font-weight:700;border-radius:8px;padding:4px 10px;font-size:13px}
+pre{background:#1c0b30;color:#e8d3fa;font-size:11.5px;line-height:1.35;border-radius:9px;padding:8px 12px;font-family:'DejaVu Sans Mono',monospace}
+/* 06 hardware & wristband */
+.hw{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px 8px;margin-top:6px}
+.hw div{border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12.5px;line-height:1.2;background:#fff}
+.hw b{display:block;font-size:14px;color:var(--p1)}
+.screens{display:flex;gap:10px;margin-top:6px}
+.scr{flex:1;text-align:center}
+.bez{background:#0c0517;border-radius:20px;padding:7px;border:2px solid #2b1649}
+.lcd{background:#07111f;border-radius:12px;aspect-ratio:320/170;color:#f4f8ff;padding:7px 9px;text-align:left;font-size:11px;position:relative;overflow:hidden}
+.scr small{display:block;font-size:12.5px;font-weight:700;margin-top:4px;color:var(--p1)}
+.lcd .h{font-size:10px;color:#56a7ff;font-weight:800;letter-spacing:.08em}
+.lcd .code{font-size:30px;font-weight:800;text-align:center;letter-spacing:.14em;margin-top:4px}
+.lcd .m{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:5px}
+.lcd .m div{background:#0b1627;border:1px solid #263244;border-radius:6px;padding:4px 6px;font-size:10px;font-weight:700;line-height:1.1}
+.lcd .m div b{display:block;font-size:17px}
+.lcd .t{font-size:14px;font-weight:700;margin-top:5px;line-height:1.15}
+.lcd .bar{height:5px;border-radius:3px;background:#1e2b42;margin-top:6px}
+.lcd .bar i{display:block;height:5px;width:33%;border-radius:3px;background:#56a7ff}
+.lcd .dn{position:absolute;left:9px;right:9px;bottom:7px;background:#7ce1bb;color:#04111f;font-weight:800;font-size:13px;text-align:center;border-radius:7px;padding:4px 0}
+.lcd .tm{position:absolute;right:9px;top:6px;background:#1b2a40;border-radius:8px;padding:1px 6px;font-size:10px}
+/* 07 voice */
+.vf{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.vf div{display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:9px;padding:4px 10px;font-size:13px;line-height:1.2}
+.vf i{flex:none;width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;font-style:normal;text-align:center;line-height:26px;font-weight:800}
+.vf b{display:block;font-size:14.5px}
+/* 08 matrix */
+.mx{display:grid;grid-template-columns:34px 1fr 1fr;grid-template-rows:22px 1fr 1fr;gap:5px;margin-top:6px;height:148px}
+.mx .ax{font-size:12px;font-weight:800;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.mx .v{writing-mode:vertical-rl;transform:rotate(180deg)}
+.mx .c{border-radius:9px;padding:5px 8px;font-size:12px;line-height:1.25}
+.mx .c b{display:block;font-size:14.5px;letter-spacing:.04em}
+/* 09 deps */
+.dep{display:flex;align-items:stretch;gap:3px;margin-top:6px;height:74px}
+.dep div{flex:1;border-radius:8px;padding:4px 3px;text-align:center;font-size:12px;line-height:1.2;border:2px solid;display:flex;flex-direction:column;justify-content:center}
+.dep b{font-size:10px;letter-spacing:.06em;display:block;margin-bottom:3px}
+.dep .d{background:var(--okbg);border-color:#9fdcc6;color:#0b6a4d}
+.dep .a{background:#eaf2ff;border-color:var(--blue);color:#17408c}
+.dep .l{background:#f0eef3;border-color:#c9c2d4;border-style:dashed;color:#7a7088}
+.dep .ar{flex:none;width:8px;background:none;border:0;padding:0;color:var(--acc);font-weight:800;font-size:18px;justify-content:center}
+/* 10 interface */
+.shots{display:flex;gap:12px;margin-top:4px}
+.ph{display:flex;gap:5px;flex:none}
+.ph figure{width:76px}
+.ph img{width:76px;height:70px;object-fit:cover;object-position:top;border-radius:10px;display:block}
+.web{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;flex:1}
+.web img{width:100%;height:60px;object-fit:cover;object-position:top left;border-radius:6px;display:block;border:1px solid var(--line)}
+figcaption{font-size:11.5px;font-weight:700;text-align:center;margin-top:3px;color:var(--ink)}
+h3{font-size:17px;font-weight:800;color:var(--p1);display:flex;align-items:center;gap:8px}
+h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);border-radius:10px;padding:2px 8px}
+/* 11 12 */
+.orig{margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}
+.orig div{font-size:12.5px;line-height:1.2;padding-left:9px;border-left:4px solid var(--acc)}
+.orig b{display:block;font-size:14px}
+.ben{margin-top:6px}
+.ben li{list-style:none;padding:3px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.ben li:last-child{border:0}
+.plan{background:var(--warnbg);color:#7a520f;border-radius:8px;padding:5px 9px;font-size:12.5px;margin-top:5px}
+.foot{background:var(--p1);color:#fff;padding:6px 46px;font-size:16px;flex:none;display:flex;gap:18px;align-items:center;height:40px}
+.foot b{font-size:24px;color:#e6a6ff}
+</style></head><body><div id="poster">
+
+<div class="hdr">
+  <span class="pill">NAPROCK PROCON 2026 · Themed Section</span>
+  <h1>Band<span>Flow</span></h1>
+  <div class="tag">Break it down, wear the flow.</div>
+  <div class="sub">AI-assisted work breakdown &amp; smart-wristband task delivery</div>
+  <div class="band">
+    <svg width="470" height="200" style="position:absolute;left:0;top:0"><ellipse cx="235" cy="100" rx="170" ry="84" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-dasharray="7 7"/></svg>
+    <div class="watch"><small>NEXT STEP</small><b>Prep Batch #2<br>Marinade</b><i>✓ DONE</i></div>
+    <div class="node" style="left:168px;top:-4px;width:150px"><em>1</em><b style="display:inline">Dispatch</b><br>vibrates on arrival</div>
+    <div class="node" style="left:335px;top:34px"><em>2</em><b style="display:inline">Display</b><br>step shown on band</div>
+    <div class="node" style="left:335px;top:134px"><em>3</em><b style="display:inline">Execute</b><br>hands on the work</div>
+    <div class="node" style="left:168px;top:174px;width:160px"><em>4</em><b style="display:inline">Confirm</b> · tap DONE</div>
+    <div class="node" style="left:0;top:90px"><em>5</em><b style="display:inline">Next</b><br>next step arrives</div>
+  </div>
+</div>
+<div class="strip"><div class="st"><b>●</b> Work in progress: voice entry and vibration alerts are in hardware assembly; benefits are proposed and not yet measured.</div>
+<div class="team" style="text-align:right;line-height:1.3"><b>Team</b> E. Tuvshinzaya · N. Sanchirbayar · G. Erdene · <b>Mentor</b> U. Anujin<br>New Mongol College of Technology, Mongolia · Reg. No. 10083</div></div>
+
+<div class="body">
+
+<div class="row">
+ <div class="card" style="flex:1"><h2><span class="n">1</span>The problem: too many open tasks</h2><span class="chip g">For everyone</span>
+  <div class="tasks"><div class="stack" style="flex:1"><div>Update campaign report <b>3</b></div><div>Reply to supplier thread <b>12</b></div><div>… 20+ more open items</div></div>
+  <div style="flex:1.1"><div class="q">“What should I do next?”</div><div class="pains"><span>Decision fatigue</span><span>Context switching</span><span>Dropped dependencies</span><span>Lower velocity</span></div></div></div>
+  <p style="margin-top:6px;font-size:14px">Answering this again and again costs time and energy. It is structural, not a personal failure.</p></div>
+ <div class="card" style="flex:1"><h2><span class="n">2</span>Our idea: one step at a time</h2><span class="chip">Focus on doing, not deciding</span>
+  <div class="flow"><div class="s"><i>▢</i>1 big task</div><div class="ar">→</div><div class="s"><i>✦</i>Broken into ordered steps</div><div class="ar">→</div><div class="s"><i>⌚</i>Current step on the wrist</div></div>
+  <table><tr><th></th><th>Typical task tools</th><th class="bf">BandFlow</th></tr>
+  <tr><td>Worker sees</td><td>Whole backlog, alerts</td><td class="bf">The current step</td></tr>
+  <tr><td>Who decides next</td><td>The worker, again</td><td class="bf">The ordered queue</td></tr>
+  <tr><td>Where tasks arrive</td><td>Screens only</td><td class="bf">Wristband, app, web</td></tr></table></div>
+</div>
+
+<div class="card"><h2><span class="n">3</span>Who it is for</h2><span class="cap">▲ Photos and drawings are scenario illustrations, not real deployments.</span>
+ <div class="users">
+  <div class="u"><img src="nurse_full.jpg"><div><b>Hospital nurse</b><small>Moves from room to room</small><em>Wristband</em><strong>Next task arrives as each is done</strong></div></div>
+  <div class="u"><img src="kitchen_full.jpg" style="object-position:center 30%"><div><b>Restaurant kitchen</b><small>Hands full, noisy</small><em>Wristband</em><strong>Vibration alert, tap to confirm</strong></div></div>
+  <div class="u"><img src="farm_full.jpg"><div><b>Farm / outdoor</b><small>No computer during work</small><em>Wristband</em><em>Web at home</em><strong>Review progress at home</strong></div></div>
+  <div class="u"><svg viewBox="0 0 250 112"><rect width="250" height="112" fill="#e9e1f5"/><rect x="20" y="52" width="52" height="34" fill="#c68b4e"/><rect x="92" y="38" width="62" height="48" fill="#d6a05f"/><rect x="12" y="86" width="226" height="14" rx="7" fill="#5b5278"/><rect x="170" y="24" width="30" height="34" rx="8" fill="#0c0517"/><rect x="176" y="31" width="18" height="6" fill="#fff"/><rect x="176" y="41" width="12" height="5" fill="#d98cf5"/><rect x="178" y="58" width="14" height="22" rx="4" fill="#2b1649"/></svg><div><b>Factory / warehouse</b><small>Hands always occupied</small><em>Wristband</em><strong>Tap DONE to finish the step</strong></div></div>
+  <div class="u"><svg viewBox="0 0 250 112"><rect width="250" height="112" fill="#e9e1f5"/><rect x="50" y="10" width="150" height="76" rx="6" fill="#fff" stroke="#5b5278" stroke-width="5"/><rect x="62" y="22" width="56" height="12" fill="#2aa889"/><rect x="62" y="40" width="100" height="10" fill="#6aa0ff"/><rect x="62" y="56" width="76" height="10" fill="#d98cf5"/><rect x="108" y="88" width="34" height="12" fill="#5b5278"/></svg><div><b>Office worker</b><small>Task pile-up</small><em>App / web</em><strong>Priority matrix + ordered steps; no band needed</strong></div></div>
+ </div></div>
+
+<div class="card"><h2><span class="n">4</span>How it works</h2><span class="chip g">The core loop</span>
+ <div class="steps">
+  <div class="stp"><i style="background:#6a3fa0">1</i><small>SUPERVISOR</small><b>Assign</b><p>Creates work in the app with priority and due date, picks the worker(s)</p></div>
+  <div class="stp"><i style="background:var(--acc)">2</i><small>AI / SERVER</small><b>Break down</b><p>Ordered steps with prerequisites; the server validates them</p></div>
+  <div class="stp"><i style="background:var(--blue)">3</i><small>SERVER</small><b>Queue</b><p>First ready step becomes active; dependent steps stay locked</p></div>
+  <div class="stp"><i style="background:#c22fe0">4</i><small>WRISTBAND</small><b>Deliver</b><p>Sent over Bluetooth to that worker’s linked band; it vibrates and shows the step</p></div>
+  <div class="stp"><i style="background:var(--ok)">5</i><small>WORKER</small><b>Confirm</b><p>Taps DONE on the band, or ticks the step in the app</p></div>
+  <div class="stp"><i style="background:var(--p1)">6</i><small>SERVER</small><b>Advance</b><p>Saves progress, unlocks and sends the next step, updates the dashboard</p></div>
+ </div>
+ 
+ <div class="ex"><b>Steps 4 to 6 repeat until all steps are done. Example: “Launch a new seasonal menu”</b><span class="on">1 List seasonal ingredients</span><span>2 Draft 5 new dish ideas</span><span>3 Cook and taste-test each dish</span><span>4 Choose the final 3 dishes</span><span>5 Calculate cost per dish</span><span>6 Design and print the menu</span></div></div>
+
+<div class="card"><h2><span class="n">5</span>System architecture</h2><span class="chip">For specialists</span>
+ <div style="display:flex;gap:18px"><div class="arch">
+  <div class="bx cl" style="left:262px;top:0;width:250px;height:50px"><b>AI service (optional)</b>Steps + priority class, as JSON</div>
+  <div class="bx cl" style="left:540px;top:0;width:242px;height:50px"><b>Whisper speech-to-text API</b>Voice clip in, text out</div>
+  <div class="lbl" style="left:792px;top:14px;width:260px;text-align:left">← internet; called only when needed</div>
+  <div class="arw" style="left:372px;top:42px;font-size:24px">↕</div><div class="arw" style="left:650px;top:42px;font-size:24px">↕</div>
+  <div class="bx" style="left:0;top:68px;width:200px;height:56px"><b>Mobile app</b>Expo / React Native</div>
+  <div class="bx" style="left:0;top:132px;width:200px;height:56px"><b>Web dashboard</b>React + Vite · same API</div>
+  <div class="arw" style="left:216px;top:104px;font-size:26px">⇄</div><div class="lbl" style="left:208px;top:138px;width:50px">HTTP</div>
+  <div class="bx pi" style="left:262px;top:62px;width:520px;height:134px"><b>Raspberry Pi 4 · local hub on the Wi-Fi network</b>
+   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+    <div class="in"><b>Node.js API</b>Accounts, work, steps, progress, pairing, voice</div>
+    <div class="in"><b>SQLite</b>One source of truth: tasks, steps, events</div>
+    <div class="in"><b>Flask BLE bridge</b>Bleak · auto-reconnect · event queue</div></div>
+   <div style="font-size:12.5px;margin-top:5px;color:#e8d3fa">Node → bridge: active step · Bridge → Node: DONE events and band requests</div></div>
+  <div class="arw" style="left:792px;top:104px;font-size:26px">⇄</div><div class="lbl" style="left:784px;top:138px;width:50px">BLE</div>
+  <div class="bx band2" style="left:842px;top:62px;width:218px;height:134px"><b>ESP32-S3 wristband</b>Touchscreen · vibration motor · electret mic · battery + charger</div>
+ </div>
+ <div style="flex:1;margin-top:6px"><pre>{ "title": "…", "subtasks": [
+  { "description": "…",
+    "order_index": 1,
+    "depends_on_order_index": null } ] }</pre>
+  <p style="font-size:13px;margin-top:6px"><b>AI reply</b> is validated by the server before saving (invalid steps and circular dependencies are rejected). <b>Priority:</b> AI classifier, or rules: urgent = due within 2 days, important = above Low priority.</p></div></div>
+ <div class="chips"><span>TypeScript</span><span>React Native · Expo</span><span>React · Vite</span><span>Node.js</span><span>SQLite</span><span>Python · Flask · Bleak</span><span>Arduino C++ · LVGL · NimBLE</span><span>ESP32-S3</span><span>Bluetooth LE</span><span>Whisper API</span><span style="background:none;color:var(--muted);font-weight:400">AI and Whisper need internet; the rest runs on the local network.</span></div>
+
+</div>
+
+<div class="row">
+ <div class="card" style="flex:1.05"><h2><span class="n">6</span>The wristband</h2><span class="chip">Hardware</span>
+  <div class="hw">
+   <div><b>ESP32-S3 + touch</b>320×170 screen, DONE and menus</div>
+   <div><b>Electret mic</b>Records voice for task entry</div>
+   <div><b>Vibration motor</b>Alerts a new step</div>
+   <div><b>Battery + charger</b>Rechargeable, charger module</div>
+   <div><b>Bluetooth LE</b>Link to the Pi bridge</div>
+   <div><b>Account link</b>6-digit code, one band per worker</div></div>
+  <div class="screens">
+   <div class="scr"><div class="bez"><div class="lcd"><div class="h">LINK THIS BAND</div><div class="code">482 916</div><div style="text-align:center;font-size:9.5px;color:#a7b4c9">Enter it in the app: Settings › Wristband</div></div></div><small>Pairing</small></div>
+   <div class="scr"><div class="bez"><div class="lcd"><div class="h">PRIORITY MATRIX</div><div class="m"><div style="color:#ff8f8f">DO FIRST<b>2</b></div><div style="color:#56a7ff">SCHEDULE<b>3</b></div><div style="color:#ffd285">DELEGATE<b>1</b></div><div style="color:#a7b4c9">ELIMINATE<b>0</b></div></div></div></div><small>Matrix</small></div>
+   <div class="scr"><div class="bez"><div class="lcd"><div class="h">TASK · ON THE WATCH</div><span class="tm">03:12</span><div class="t">Draft 5 new dish ideas</div><div class="bar"><i></i></div><div class="dn">✓ DONE</div></div></div><small>Current step</small></div>
+  </div><p class="note" style="margin-top:3px">Screens drawn from the firmware design (example numbers). The band can also remove a step and unlink itself.</p></div>
+
+ <div class="card" style="flex:.95"><h2><span class="n">7</span>Voice task entry</h2><span class="chip w">Final hardware stage</span>
+  <div class="vf">
+   <div><i>1</i><span><b>Speak</b>Electret microphone on the ESP32-S3 records a short clip</span></div>
+   <div><i>2</i><span><b>Send</b>The clip travels over Bluetooth to the Raspberry Pi</span></div>
+   <div><i>3</i><span><b>Transcribe</b>The Pi sends the audio to the Whisper API and gets text back</span></div>
+   <div><i>4</i><span><b>Confirm</b>The text appears on the band’s screen to check</span></div>
+   <div><i>5</i><span><b>Create</b>Node saves the task, steps are built, and the first one is dispatched</span></div>
+  </div></div>
+</div>
+
+<div class="row">
+ <div class="card" style="flex:1"><h2><span class="n">8</span>Priority matrix</h2><span class="chip">App + band</span>
+  <div class="mx"><div></div><div class="ax">URGENT</div><div class="ax">NOT URGENT</div>
+   <div class="ax v">IMPORTANT</div><div class="c" style="background:var(--badbg);color:#8c2a1f"><b>DO FIRST</b>Due within 2 days or overdue, priority above Low</div><div class="c" style="background:#eaf2ff;color:#17408c"><b>SCHEDULE</b>Important, not due soon</div>
+   <div class="ax v">MINOR</div><div class="c" style="background:var(--warnbg);color:#7a520f"><b>DELEGATE</b>Urgent, low priority</div><div class="c" style="background:#eee9f3;color:#4b4160"><b>ELIMINATE</b>Low priority, not urgent</div></div>
+  <p class="note" style="margin-top:4px;font-size:12px">AI classifier when connected, else these rules. Band shows counts.</p></div>
+ <div class="card" style="flex:1.25"><h2><span class="n">9</span>What makes it different</h2>
+  <div class="orig">
+   <div><b>Wristband as interface</b>One step at a time, tap to confirm</div>
+   <div><b>Account-linked band</b>Steps go only to that worker’s band</div>
+   <div><b>Dependency-aware queue</b>Later steps stay locked until ready</div>
+   <div><b>Matrix on the wrist</b>Browse quadrants, works and steps</div>
+   <div><b>Voice task entry</b>Speak to the band; Whisper transcribes</div>
+   <div><b>Offline-tolerant</b>Work saved if the band is away; events queued</div>
+   <div><b>Accounts and roles</b>Boss and worker login, password reset, worker status</div>
+   <div><b>One backend</b>App and web share one API and database</div></div></div>
+ <div class="card" style="flex:1.15"><h2><span class="n">10</span>Dependency locking</h2><span class="chip">Per task</span>
+  <div class="dep"><div class="d"><b>DONE</b>List ingredients</div><div class="ar">›</div><div class="d"><b>DONE</b>Draft dish ideas</div><div class="ar">›</div><div class="a"><b>ACTIVE · ON BAND</b>Cook and taste-test</div><div class="ar">›</div><div class="l"><b>LOCKED</b>Choose final 3</div><div class="ar">›</div><div class="l"><b>LOCKED</b>Cost per dish</div></div>
+  <ul style="margin:6px 0 0 16px"><li style="font-size:13px">Only the active step is sent to the band.</li><li style="font-size:13px">A step unlocks when its prerequisite is done; loops are rejected.</li><li style="font-size:13px">Work can go to several workers; each gets steps on their own band.</li></ul></div>
+</div>
+
+<div class="row"><div class="card" style="flex:1"><h2><span class="n">11</span>Interfaces: app &amp; dashboard</h2>
+ <div class="shots">
+  <div><h3>Mobile app <em>real screenshots</em></h3><div class="ph" style="margin-top:6px">
+   <figure><img src="app1.png"><figcaption>Create work</figcaption></figure>
+   <figure><img src="app2.png"><figcaption>Assign work</figcaption></figure>
+   <figure><img src="app3.png"><figcaption>Boss dashboard</figcaption></figure>
+   <figure><img src="app4.png"><figcaption>Work progress</figcaption></figure>
+   <figure><img src="app5.png"><figcaption>Worker dashboard</figcaption></figure>
+   <figure><img src="app6.png"><figcaption>Task atlas</figcaption></figure></div></div>
+  <div style="flex:1"><h3>Web dashboard <em>real screenshots</em></h3><div class="web" style="margin-top:6px">
+   <figure><img src="web1.png"><figcaption>Landing page</figcaption></figure>
+   <figure><img src="web2.png"><figcaption>Dashboard</figcaption></figure>
+   <figure><img src="web3.png"><figcaption>All tasks</figcaption></figure>
+   <figure><img src="web4.png"><figcaption>Assign work</figcaption></figure>
+   <figure><img src="web5.png"><figcaption>Work progress</figcaption></figure>
+   <figure><img src="web6.png"><figcaption>Workers &amp; availability</figcaption></figure></div></div>
+ </div></div>
+<div class="card" style="flex:none;width:330px"><h2><span class="n">12</span>Expected benefits</h2>
+  <ul class="ben"><li>Less time spent deciding what to start</li><li>Fewer steps started before prerequisites</li><li>Hands-free steps in busy or noisy work</li><li>Live progress for supervisors</li></ul>
+  <div class="plan"><b>Proposed, not yet measured.</b> Planned test: task completion time with vs. without BandFlow.</div></div>
+</div>
+
+</div>
+<div class="foot"><b>BandFlow</b><span>One sentence: BandFlow turns a big task into ordered steps, delivers them one at a time to a linked wristband, and shows confirmed progress on a shared dashboard.</span></div>
+</div></body></html>
