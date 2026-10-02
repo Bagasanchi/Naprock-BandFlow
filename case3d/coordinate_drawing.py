@@ -7,8 +7,8 @@ from matplotlib.patches import Rectangle, Circle, FancyArrowPatch
 
 L, W, H, C, WALL = 77, 35, 14, 0.2, 1.2
 O = C + WALL
-SY = 1.0                               # screen top edge (measured 3.0 moved up 2.0)
-PY, PZ = 16.5 - 5.14, -9 - 2.35        # port centre (y, z): spans y 6.22 .. 16.5
+SY = (W - 31) / 2                      # screen top edge, centred in y
+PY, PZ = 16.5 - 5.14, -7.4 - 2.35        # port centre (y, z): spans y 6.22 .. 16.5
 TX, TZ = 18 + 3.5, -5 - 1.9           # toggle centre (x, z)
 LUG_OUT = 5.9
 INK, BLUE, RED, GREEN, ORANGE, GREY = "#1a1a1a", "#1f5fbf", "#d62728", "#2a8f3a", "#e07b00", "#8a8a8a"
@@ -39,9 +39,9 @@ ax.plot([L], [16.5], "s", color="white", mec=GREEN, ms=7, mew=2, zorder=5); ax.p
 ax.plot([0], [0], "k+", ms=16, mew=2.2)
 ax.annotate("(0, 0)", (0, 0), xytext=(-5, -5), fontsize=11, fontweight="bold", ha="right", va="bottom")
 
-ax.text(37, 20, "SCREEN WINDOW\ntop-left corner (8, 1)\nsize 58 x 31\n(cut opening 58.4 x 31.4)", color=RED, ha="center", va="center", fontsize=11, fontweight="bold")
+ax.text(37, 20, "SCREEN WINDOW\ntop-left corner (8, 2)\nsize 58 x 31 (centred in y)\n(cut opening 58.4 x 31.4)", color=RED, ha="center", va="center", fontsize=11, fontweight="bold")
 dim(ax, (0, SY + 2), (8, SY + 2), "8", color=RED, off=(0, -1.2))
-dim(ax, (3, 0), (3, SY), "1", color=RED, off=(-1.4, 0)); dim(ax, (3, SY + 31), (3, W), "3", color=RED, off=(-1.4, 0))
+dim(ax, (3, 0), (3, SY), "2", color=RED, off=(-1.4, 0)); dim(ax, (3, SY + 31), (3, W), "2", color=RED, off=(-1.4, 0))
 dim(ax, (8, 6.5), (66, 6.5), "58", color=RED)
 dim(ax, (62, SY), (62, SY + 31), "31", color=RED)
 ax.text(L - 0.8, W - 0.6, "safe zone 77 x 35", color=BLUE, fontsize=9.5, ha="right", va="bottom", fontweight="bold")
@@ -52,7 +52,7 @@ for x in range(0, L + 1, 10): ax.text(x, -O - 11, str(x), ha="center", fontsize=
 for y in range(0, W + 1, 5): ax.text(-O - 9.5, y, str(y), ha="right", va="center", fontsize=7.5, color=GREY)
 
 dim(ax, (L + 9.5, 0), (L + 9.5, 16.5), "16.5", color=GREEN); dim(ax, (L + 3.5, 16.5 - 10.28), (L + 3.5, 16.5), "10.28", color=GREEN)
-ax.text(L + 13, 16.5, "CHARGING PORT (right end face)\nmeasured point (77, 16.5, z -9) = one edge\n10.28 along y  (cut +0.4)\nspans y 6.22 -> 16.5", color=GREEN, fontsize=10.5, va="center", fontweight="bold")
+ax.text(L + 13, 16.5, "CHARGING PORT (right end face)\nmeasured point (77, 16.5, z -7.4) = one edge\n10.28 along y  (cut +0.4)\nspans y 6.22 -> 16.5", color=GREEN, fontsize=10.5, va="center", fontweight="bold")
 dim(ax, (0, W + O + 5), (18, W + O + 5), "18", color=ORANGE, off=(0, -1.3)); dim(ax, (18, W + O + 5), (25, W + O + 5), "7", color=ORANGE, off=(0, -1.3))
 ax.text(18, W + O + 8.5, "ON/OFF TOGGLE (bottom long face)\ntop-left corner (18, 35, z -5)   7 along x  (cut +0.4)\nspans x 18 -> 25", color=ORANGE, fontsize=10.5, ha="center", va="top", fontweight="bold")
 ax.text(L / 2, -O - 14.5, "outer shell = safe zone + 0.2 clearance + 1.2 wall = 1.4 mm on every side.   Grey tabs = strap lugs and screw pads.", ha="center", fontsize=9, color=GREY)
@@ -72,10 +72,10 @@ def frame(a, span, title):
     dim(a, (-5, 0), (-5, H), "14", color=BLUE)
     a.set_ylim(H + 5, -8); a.set_aspect("equal"); a.axis("off")
 frame(a1, W, "RIGHT END FACE (x = 77) - charging port\ny -> right, z -> down")
-a1.add_patch(Rectangle((PY - 5.14 - C, 9 - C), 10.28 + 2 * C, 4.7 + 2 * C, fc="#c8efd0", ec=GREEN, lw=1.8))
-a1.plot([16.5], [9], "s", color="white", mec=GREEN, ms=7, mew=2)
-a1.text(16.5 + 3, 5.0, "PORT 10.28 x 4.7\nspans y 6.22 -> 16.5\nand z -9 -> -13.7", color=GREEN, ha="left", va="center", fontsize=7.5, fontweight="bold")
-dim(a1, (0, 15.2), (16.5, 15.2), "16.5", color=GREEN, off=(0, 1.2)); dim(a1, (3, 0), (3, 9), "9", color=GREEN, off=(1.6, 0))
+a1.add_patch(Rectangle((PY - 5.14 - C, 7.4 - C), 10.28 + 2 * C, 4.7 + 2 * C, fc="#c8efd0", ec=GREEN, lw=1.8))
+a1.plot([16.5], [7.4], "s", color="white", mec=GREEN, ms=7, mew=2)
+a1.text(16.5 + 3, 5.0, "PORT 10.28 x 4.7\nspans y 6.22 -> 16.5\nand z -7.4 -> -12.1", color=GREEN, ha="left", va="center", fontsize=7.5, fontweight="bold")
+dim(a1, (0, 15.2), (16.5, 15.2), "16.5", color=GREEN, off=(0, 1.2)); dim(a1, (3, 0), (3, 7.4), "7.4", color=GREEN, off=(2.0, 0))
 a1.set_xlim(-9, W + 22)
 frame(a2, L, "BOTTOM LONG FACE (y = 35) - toggle\nx -> right, z -> down")
 a2.add_patch(Rectangle((18 - C, 5 - C), 7 + 2 * C, 3.8 + 2 * C, fc="#ffe2bd", ec=ORANGE, lw=1.8))

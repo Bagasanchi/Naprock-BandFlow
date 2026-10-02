@@ -16,8 +16,8 @@ SCREW_DX = 30.0
 cx, cy = L / 2, -W / 2
 
 # window positions. The measured (x, y, z) is the window's top-left corner (z measured down from the screen face).
-SCREEN_TL, SCREEN_WH = (8.0, 1.0), (58.0, 31.0)                  # measured y = 3.0 moved up 2.0
-PORT_TL, PORT_WH = (16.5, -9.0), (10.28, 4.7)                    # right end face: (y, z), (w along y, h along z)
+SCREEN_TL, SCREEN_WH = (8.0, (W - 31.0) / 2), (58.0, 31.0)       # y centred in the 35 mm safe zone -> top edge at 2.0
+PORT_TL, PORT_WH = (16.5, -9.0 + 1.6), (10.28, 4.7)      # z measured -9.0, moved up 1.6 -> -7.4                    # right end face: (y, z), (w along y, h along z)
                                                                  # port centre = measured y - 5.14 (shifted toward y = 0): spans y 6.22 .. 16.5
 TOG_TL, TOG_WH = (18.0, -5.0), (7.0, 3.8)                        # bottom long face: (x, z), (w along x, h along z)
 PORT_Y, PORT_Z = PORT_TL[0] - PORT_WH[0] / 2, PORT_TL[1] - PORT_WH[1] / 2     # centres
