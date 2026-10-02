@@ -60,8 +60,18 @@ for name, s in (("A", A), ("B", B)):
           (name, v.isValid(), len(s.solids().vals()), bb.xlen, bb.ylen, bb.zlen, v.Volume()))
     cq.exporters.export(s, os.path.join(out, "bandflow_strap_%s.stl" % name), tolerance=0.02, angularTolerance=0.1)
     cq.exporters.export(s, os.path.join(out, "bandflow_strap_%s.step" % name))
+# ---------- retaining pins (2 needed, one per strap end) ----------
+PIN_D, PIN_L, HEAD_D, HEAD_T = 1.6, 28.6, 3.2, 0.8      # lug holes 1.8, tube bore 1.9, lug outer-to-outer 28.0 (+0.6 to melt/glue)
+def pin(y):
+    shaft = cq.Workplane("YZ").center(y, PIN_D / 2).circle(PIN_D / 2).extrude(PIN_L)
+    head = cq.Workplane("YZ").workplane(offset=-HEAD_T).center(y, PIN_D / 2).circle(HEAD_D / 2).extrude(HEAD_T)
+    return shaft.union(head)
+pins = pin(0).union(pin(6))
+cq.exporters.export(pins, os.path.join(out, "bandflow_pins_x2.stl"), tolerance=0.01, angularTolerance=0.05)
+cq.exporters.export(pin(0), os.path.join(out, "bandflow_pin.stl"), tolerance=0.01, angularTolerance=0.05)
+print("pin: %.1f mm shaft x %.1f dia + %.1f dia head (print 2, lying flat)" % (PIN_L, PIN_D, HEAD_D))
 # closed-loop length range (tube centre to tube centre, approx): frame post + hole distance
 print("closed loop length %.0f..%.0f mm -> wrist circumference roughly %.0f..%.0f mm" % (
     A_LEN + 9 + HOLE_FIRST - 9, A_LEN + 9 + HOLE_FIRST + HOLE_STEP * (HOLE_N - 1) - 9,
-    A_LEN + HOLE_FIRST + 51.4 - 10, A_LEN + HOLE_FIRST + HOLE_STEP * (HOLE_N - 1) + 51.4 - 10))
+    A_LEN + HOLE_FIRST + 45.0 - 10, A_LEN + HOLE_FIRST + HOLE_STEP * (HOLE_N - 1) + 45.0 - 10))
 print("tube length %.1f mm vs lug gap %.1f mm" % (W, LUG_GAP))
