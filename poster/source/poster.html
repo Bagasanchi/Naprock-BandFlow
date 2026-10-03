@@ -28,7 +28,7 @@ h1 span{color:#e6a6ff}
 .strip{background:#1a0630;color:#e9d6f9;font-size:13px;display:flex;justify-content:space-between;align-items:center;padding:4px 46px;flex:none;height:40px}
 .strip .st b{color:#ffcf6a}
 .strip .team b{color:#fff}
-.body{flex:1;padding:9px 28px 0;display:flex;flex-direction:column;gap:7px;min-height:0}
+.body{zoom:1.04;flex:1;padding:9px 28px 0;display:flex;flex-direction:column;gap:7px;min-height:0}
 .row{display:flex;gap:10px}
 .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;position:relative;box-shadow:0 2px 6px rgba(70,20,110,.07)}
 .card h2{font-size:26px;display:flex;align-items:center;gap:10px;font-weight:800;line-height:1.1}
@@ -62,6 +62,8 @@ td.bf{background:#f6e9fe;font-weight:700;color:var(--p1)}
 .u small{font-size:12.5px;color:var(--muted);display:block}
 .u em{font-style:normal;font-size:12px;font-weight:800;border-radius:12px;padding:2px 9px;background:var(--soft);color:var(--p2);display:inline-block;margin:3px 3px 3px 0}
 .u strong{font-size:12.5px;color:var(--ok);display:block;line-height:1.25}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.pills span{background:var(--soft);color:var(--p1);font-weight:700;font-size:14px;border-radius:14px;padding:4px 12px}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}.role{background:var(--soft);border-radius:10px;padding:8px 12px}.role b{font-size:19px;color:var(--p1)}.role ul{margin:4px 0 0 18px}.role li{font-size:14.5px;line-height:1.3}
 .cap{position:absolute;right:18px;top:20px;font-size:12px;color:var(--muted);font-style:italic}
 /* 04 */
 .steps{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:6px}
@@ -89,7 +91,7 @@ td.bf{background:#f6e9fe;font-weight:700;color:var(--p1)}
 .arw{position:absolute;color:var(--acc);font-size:30px;line-height:1;font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .chips span{background:var(--soft);color:var(--p1);font-weight:700;border-radius:8px;padding:4px 10px;font-size:13px}
-pre{background:#1c0b30;color:#e8d3fa;font-size:11.5px;line-height:1.35;border-radius:9px;padding:8px 12px;font-family:'DejaVu Sans Mono',monospace}
+pre{background:#1c0b30;color:#e8d3fa;font-size:11px;line-height:1.35;border-radius:9px;padding:8px 12px;font-family:'DejaVu Sans Mono',monospace}
 /* 06 hardware & wristband */
 .hw{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px 8px;margin-top:6px}
 .hw div{border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12.5px;line-height:1.2;background:#fff}
@@ -131,11 +133,11 @@ pre{background:#1c0b30;color:#e8d3fa;font-size:11.5px;line-height:1.35;border-ra
 /* 10 interface */
 .shots{display:flex;gap:12px;margin-top:4px}
 .ph{display:flex;gap:5px;flex:none}
-.ph figure{width:76px}
-.ph img{width:76px;height:70px;object-fit:cover;object-position:top;border-radius:10px;display:block}
-.web{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;flex:1}
-.web img{width:100%;height:60px;object-fit:cover;object-position:top left;border-radius:6px;display:block;border:1px solid var(--line)}
-figcaption{font-size:11.5px;font-weight:700;text-align:center;margin-top:3px;color:var(--ink)}
+.ph figure{width:96px}
+.ph img{width:96px;height:110px;object-fit:cover;object-position:top;border-radius:10px;display:block}
+.web{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;flex:1}
+.web img{width:100%;height:62px;object-fit:cover;object-position:top left;border-radius:6px;display:block;border:1px solid var(--line)}
+figcaption{font-size:13px;font-weight:700;text-align:center;margin-top:3px;color:var(--ink)}
 h3{font-size:17px;font-weight:800;color:var(--p1);display:flex;align-items:center;gap:8px}
 h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);border-radius:10px;padding:2px 8px}
 /* 11 12 */
@@ -145,6 +147,7 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
 .ben{margin-top:6px}
 .ben li{list-style:none;padding:3px 0;border-bottom:1px solid var(--line);font-size:13.5px}
 .ben li:last-child{border:0}
+.stat{font-size:13.5px;line-height:1.3;margin-top:7px;background:var(--soft);border-radius:9px;padding:6px 10px}.stat b{display:block;font-size:15px;margin-bottom:2px}.stat .ok{color:var(--ok)}.stat .wip{color:var(--warn)}
 .plan{background:var(--warnbg);color:#7a520f;border-radius:8px;padding:5px 9px;font-size:12.5px;margin-top:5px}
 .foot{background:var(--p1);color:#fff;padding:6px 46px;font-size:16px;flex:none;display:flex;gap:18px;align-items:center;height:40px}
 .foot b{font-size:24px;color:#e6a6ff}
@@ -153,11 +156,11 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
 <div class="hdr">
   <span class="pill">NAPROCK PROCON 2026 · Themed Section</span>
   <h1>Band<span>Flow</span></h1>
-  <div class="tag">Break it down, wear the flow.</div>
-  <div class="sub">AI-assisted work breakdown &amp; smart-wristband task delivery</div>
+  <div class="tag">Work delivered to your wrist, one step at a time.</div>
+  <div class="sub">Wristband task delivery with a phone app and web dashboard</div>
   <div class="band">
     <svg width="470" height="200" style="position:absolute;left:0;top:0"><ellipse cx="235" cy="100" rx="170" ry="84" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-dasharray="7 7"/></svg>
-    <div class="watch"><small>NEXT STEP</small><b>Prep Batch #2<br>Marinade</b><i>✓ DONE</i></div>
+    <div class="watch"><small>NEXT STEP</small><b>Inspect the<br>installation area</b><i>✓ DONE</i></div>
     <div class="node" style="left:168px;top:-4px;width:150px"><em>1</em><b style="display:inline">Dispatch</b><br>vibrates on arrival</div>
     <div class="node" style="left:335px;top:34px"><em>2</em><b style="display:inline">Display</b><br>step shown on band</div>
     <div class="node" style="left:335px;top:134px"><em>3</em><b style="display:inline">Execute</b><br>hands on the work</div>
@@ -165,34 +168,23 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
     <div class="node" style="left:0;top:90px"><em>5</em><b style="display:inline">Next</b><br>next step arrives</div>
   </div>
 </div>
-<div class="strip"><div class="st"><b>●</b> Work in progress: voice entry and vibration alerts are in hardware assembly; benefits are proposed and not yet measured.</div>
+<div class="strip"><div class="st"><b>●</b> Work in progress: voice entry and vibration alerts are in hardware assembly; no measured results yet.</div>
 <div class="team" style="text-align:right;line-height:1.3"><b>Team</b> E. Tuvshinzaya · N. Sanchirbayar · G. Erdene · <b>Mentor</b> U. Anujin<br>New Mongol College of Technology, Mongolia · Reg. No. 10083</div></div>
 
 <div class="body">
 
 <div class="row">
- <div class="card" style="flex:1"><h2><span class="n">1</span>The problem: too many open tasks</h2><span class="chip g">For everyone</span>
-  <div class="tasks"><div class="stack" style="flex:1"><div>Update campaign report <b>3</b></div><div>Reply to supplier thread <b>12</b></div><div>… 20+ more open items</div></div>
-  <div style="flex:1.1"><div class="q">“What should I do next?”</div><div class="pains"><span>Decision fatigue</span><span>Context switching</span><span>Dropped dependencies</span><span>Lower velocity</span></div></div></div>
-  <p style="margin-top:6px;font-size:14px">Answering this again and again costs time and energy. It is structural, not a personal failure.</p></div>
- <div class="card" style="flex:1"><h2><span class="n">2</span>Our idea: one step at a time</h2><span class="chip">Focus on doing, not deciding</span>
-  <div class="flow"><div class="s"><i>▢</i>1 big task</div><div class="ar">→</div><div class="s"><i>✦</i>Broken into ordered steps</div><div class="ar">→</div><div class="s"><i>⌚</i>Current step on the wrist</div></div>
-  <table><tr><th></th><th>Typical task tools</th><th class="bf">BandFlow</th></tr>
-  <tr><td>Worker sees</td><td>Whole backlog, alerts</td><td class="bf">The current step</td></tr>
-  <tr><td>Who decides next</td><td>The worker, again</td><td class="bf">The ordered queue</td></tr>
-  <tr><td>Where tasks arrive</td><td>Screens only</td><td class="bf">Wristband, app, web</td></tr></table></div>
+ <div class="card" style="flex:.8"><h2><span class="n">1</span>What BandFlow is</h2>
+  <p style="font-size:17px;line-height:1.4;margin-top:8px">A boss creates a piece of work. It is split into <b>ordered steps</b>, and only the <b>current step</b> is sent to the assigned worker’s wristband over Bluetooth. The worker taps <b>DONE</b>, the next step arrives, and the boss sees progress update live.</p>
+  <div class="pills"><span>Boss and worker accounts</span><span>One step at a time</span><span>Live progress</span><span>Wristband + app + web</span></div></div>
+ <div class="card" style="flex:1.5"><h2><span class="n">2</span>Who uses it</h2>
+  <div class="roles">
+   <div class="role"><b>Boss</b><ul><li>Creates work with priority, due date and steps</li><li>Picks the worker, or several workers</li><li>Sees team progress and worker status</li><li>Deletes work or a single step</li><li>Resets a worker’s forgotten password</li></ul></div>
+   <div class="role"><b>Worker</b><ul><li>Sees assigned work and each step’s status</li><li>Ticks steps in the app</li><li>Links a wristband with a 6-digit code</li><li>On the band: matrix, works, steps, DONE, remove a step</li><li>Edits profile and password</li></ul></div>
+  </div></div>
 </div>
 
-<div class="card"><h2><span class="n">3</span>Who it is for</h2><span class="cap">▲ Photos and drawings are scenario illustrations, not real deployments.</span>
- <div class="users">
-  <div class="u"><img src="nurse_full.jpg"><div><b>Hospital nurse</b><small>Moves from room to room</small><em>Wristband</em><strong>Next task arrives as each is done</strong></div></div>
-  <div class="u"><img src="kitchen_full.jpg" style="object-position:center 30%"><div><b>Restaurant kitchen</b><small>Hands full, noisy</small><em>Wristband</em><strong>Vibration alert, tap to confirm</strong></div></div>
-  <div class="u"><img src="farm_full.jpg"><div><b>Farm / outdoor</b><small>No computer during work</small><em>Wristband</em><em>Web at home</em><strong>Review progress at home</strong></div></div>
-  <div class="u"><svg viewBox="0 0 250 112"><rect width="250" height="112" fill="#e9e1f5"/><rect x="20" y="52" width="52" height="34" fill="#c68b4e"/><rect x="92" y="38" width="62" height="48" fill="#d6a05f"/><rect x="12" y="86" width="226" height="14" rx="7" fill="#5b5278"/><rect x="170" y="24" width="30" height="34" rx="8" fill="#0c0517"/><rect x="176" y="31" width="18" height="6" fill="#fff"/><rect x="176" y="41" width="12" height="5" fill="#d98cf5"/><rect x="178" y="58" width="14" height="22" rx="4" fill="#2b1649"/></svg><div><b>Factory / warehouse</b><small>Hands always occupied</small><em>Wristband</em><strong>Tap DONE to finish the step</strong></div></div>
-  <div class="u"><svg viewBox="0 0 250 112"><rect width="250" height="112" fill="#e9e1f5"/><rect x="50" y="10" width="150" height="76" rx="6" fill="#fff" stroke="#5b5278" stroke-width="5"/><rect x="62" y="22" width="56" height="12" fill="#2aa889"/><rect x="62" y="40" width="100" height="10" fill="#6aa0ff"/><rect x="62" y="56" width="76" height="10" fill="#d98cf5"/><rect x="108" y="88" width="34" height="12" fill="#5b5278"/></svg><div><b>Office worker</b><small>Task pile-up</small><em>App / web</em><strong>Priority matrix + ordered steps; no band needed</strong></div></div>
- </div></div>
-
-<div class="card"><h2><span class="n">4</span>How it works</h2><span class="chip g">The core loop</span>
+<div class="card"><h2><span class="n">3</span>How it works</h2><span class="chip g">The core loop</span>
  <div class="steps">
   <div class="stp"><i style="background:#6a3fa0">1</i><small>SUPERVISOR</small><b>Assign</b><p>Creates work in the app with priority and due date, picks the worker(s)</p></div>
   <div class="stp"><i style="background:var(--acc)">2</i><small>AI / SERVER</small><b>Break down</b><p>Ordered steps with prerequisites; the server validates them</p></div>
@@ -202,9 +194,9 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
   <div class="stp"><i style="background:var(--p1)">6</i><small>SERVER</small><b>Advance</b><p>Saves progress, unlocks and sends the next step, updates the dashboard</p></div>
  </div>
  
- <div class="ex"><b>Steps 4 to 6 repeat until all steps are done. Example: “Launch a new seasonal menu”</b><span class="on">1 List seasonal ingredients</span><span>2 Draft 5 new dish ideas</span><span>3 Cook and taste-test each dish</span><span>4 Choose the final 3 dishes</span><span>5 Calculate cost per dish</span><span>6 Design and print the menu</span></div></div>
+ <div class="ex"><b>Steps 4 to 6 repeat until all steps are done. Example: “Install electrical equipment”</b><span class="on">1 Inspect the installation area</span><span>2 Prepare the required tools</span><span>3 Run the cable</span><span>4 Fit the equipment</span><span>5 Test the circuit</span><span>6 Record the result</span></div></div>
 
-<div class="card"><h2><span class="n">5</span>System architecture</h2><span class="chip">For specialists</span>
+<div class="card"><h2><span class="n">4</span>System architecture</h2><span class="chip">For specialists</span>
  <div style="display:flex;gap:18px"><div class="arch">
   <div class="bx cl" style="left:262px;top:0;width:250px;height:50px"><b>AI service (optional)</b>Steps + priority class, as JSON</div>
   <div class="bx cl" style="left:540px;top:0;width:242px;height:50px"><b>Whisper speech-to-text API</b>Voice clip in, text out</div>
@@ -222,7 +214,7 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
   <div class="arw" style="left:792px;top:104px;font-size:26px">⇄</div><div class="lbl" style="left:784px;top:138px;width:50px">BLE</div>
   <div class="bx band2" style="left:842px;top:62px;width:218px;height:134px"><b>ESP32-S3 wristband</b>Touchscreen · vibration motor · electret mic · battery + charger</div>
  </div>
- <div style="flex:1;margin-top:6px"><pre>{ "title": "…", "subtasks": [
+ <div style="flex:1;min-width:0;margin-top:6px;padding-right:6px"><pre style="white-space:pre-wrap">{ "title": "…", "subtasks": [
   { "description": "…",
     "order_index": 1,
     "depends_on_order_index": null } ] }</pre>
@@ -232,7 +224,7 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
 </div>
 
 <div class="row">
- <div class="card" style="flex:1.05"><h2><span class="n">6</span>The wristband</h2><span class="chip">Hardware</span>
+ <div class="card" style="flex:1.05"><h2><span class="n">5</span>The wristband</h2><span class="chip">Hardware</span>
   <div class="hw">
    <div><b>ESP32-S3 + touch</b>320×170 screen, DONE and menus</div>
    <div><b>Electret mic</b>Records voice for task entry</div>
@@ -243,10 +235,10 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
   <div class="screens">
    <div class="scr"><div class="bez"><div class="lcd"><div class="h">LINK THIS BAND</div><div class="code">482 916</div><div style="text-align:center;font-size:9.5px;color:#a7b4c9">Enter it in the app: Settings › Wristband</div></div></div><small>Pairing</small></div>
    <div class="scr"><div class="bez"><div class="lcd"><div class="h">PRIORITY MATRIX</div><div class="m"><div style="color:#ff8f8f">DO FIRST<b>2</b></div><div style="color:#56a7ff">SCHEDULE<b>3</b></div><div style="color:#ffd285">DELEGATE<b>1</b></div><div style="color:#a7b4c9">ELIMINATE<b>0</b></div></div></div></div><small>Matrix</small></div>
-   <div class="scr"><div class="bez"><div class="lcd"><div class="h">TASK · ON THE WATCH</div><span class="tm">03:12</span><div class="t">Draft 5 new dish ideas</div><div class="bar"><i></i></div><div class="dn">✓ DONE</div></div></div><small>Current step</small></div>
+   <div class="scr"><div class="bez"><div class="lcd"><div class="h">TASK · ON THE WATCH</div><span class="tm">03:12</span><div class="t">Prepare the required tools</div><div class="bar"><i></i></div><div class="dn">✓ DONE</div></div></div><small>Current step</small></div>
   </div><p class="note" style="margin-top:3px">Screens drawn from the firmware design (example numbers). The band can also remove a step and unlink itself.</p></div>
 
- <div class="card" style="flex:.95"><h2><span class="n">7</span>Voice task entry</h2><span class="chip w">Final hardware stage</span>
+ <div class="card" style="flex:.95"><h2><span class="n">6</span>Voice task entry</h2><span class="chip w">Final hardware stage</span>
   <div class="vf">
    <div><i>1</i><span><b>Speak</b>Electret microphone on the ESP32-S3 records a short clip</span></div>
    <div><i>2</i><span><b>Send</b>The clip travels over Bluetooth to the Raspberry Pi</span></div>
@@ -257,12 +249,12 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
 </div>
 
 <div class="row">
- <div class="card" style="flex:1"><h2><span class="n">8</span>Priority matrix</h2><span class="chip">App + band</span>
+ <div class="card" style="flex:1"><h2><span class="n">7</span>Priority matrix</h2><span class="chip">App + band</span>
   <div class="mx"><div></div><div class="ax">URGENT</div><div class="ax">NOT URGENT</div>
    <div class="ax v">IMPORTANT</div><div class="c" style="background:var(--badbg);color:#8c2a1f"><b>DO FIRST</b>Due within 2 days or overdue, priority above Low</div><div class="c" style="background:#eaf2ff;color:#17408c"><b>SCHEDULE</b>Important, not due soon</div>
    <div class="ax v">MINOR</div><div class="c" style="background:var(--warnbg);color:#7a520f"><b>DELEGATE</b>Urgent, low priority</div><div class="c" style="background:#eee9f3;color:#4b4160"><b>ELIMINATE</b>Low priority, not urgent</div></div>
   <p class="note" style="margin-top:4px;font-size:12px">AI classifier when connected, else these rules. Band shows counts.</p></div>
- <div class="card" style="flex:1.25"><h2><span class="n">9</span>What makes it different</h2>
+ <div class="card" style="flex:1.25"><h2><span class="n">8</span>What makes it different</h2>
   <div class="orig">
    <div><b>Wristband as interface</b>One step at a time, tap to confirm</div>
    <div><b>Account-linked band</b>Steps go only to that worker’s band</div>
@@ -272,12 +264,12 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
    <div><b>Offline-tolerant</b>Work saved if the band is away; events queued</div>
    <div><b>Accounts and roles</b>Boss and worker login, password reset, worker status</div>
    <div><b>One backend</b>App and web share one API and database</div></div></div>
- <div class="card" style="flex:1.15"><h2><span class="n">10</span>Dependency locking</h2><span class="chip">Per task</span>
-  <div class="dep"><div class="d"><b>DONE</b>List ingredients</div><div class="ar">›</div><div class="d"><b>DONE</b>Draft dish ideas</div><div class="ar">›</div><div class="a"><b>ACTIVE · ON BAND</b>Cook and taste-test</div><div class="ar">›</div><div class="l"><b>LOCKED</b>Choose final 3</div><div class="ar">›</div><div class="l"><b>LOCKED</b>Cost per dish</div></div>
+ <div class="card" style="flex:1.15"><h2><span class="n">9</span>Dependency locking</h2><span class="chip">Per task</span>
+  <div class="dep"><div class="d"><b>DONE</b>Inspect area</div><div class="ar">›</div><div class="d"><b>DONE</b>Prepare tools</div><div class="ar">›</div><div class="a"><b>ACTIVE · ON BAND</b>Run the cable</div><div class="ar">›</div><div class="l"><b>LOCKED</b>Fit equipment</div><div class="ar">›</div><div class="l"><b>LOCKED</b>Test circuit</div></div>
   <ul style="margin:6px 0 0 16px"><li style="font-size:13px">Only the active step is sent to the band.</li><li style="font-size:13px">A step unlocks when its prerequisite is done; loops are rejected.</li><li style="font-size:13px">Work can go to several workers; each gets steps on their own band.</li></ul></div>
 </div>
 
-<div class="row"><div class="card" style="flex:1"><h2><span class="n">11</span>Interfaces: app &amp; dashboard</h2>
+<div class="row"><div class="card" style="flex:1"><h2><span class="n">10</span>Interfaces: app &amp; dashboard</h2>
  <div class="shots">
   <div><h3>Mobile app <em>real screenshots</em></h3><div class="ph" style="margin-top:6px">
    <figure><img src="app1.png"><figcaption>Create work</figcaption></figure>
@@ -294,9 +286,9 @@ h3 em{font-style:normal;font-size:11.5px;background:var(--okbg);color:var(--ok);
    <figure><img src="web5.png"><figcaption>Work progress</figcaption></figure>
    <figure><img src="web6.png"><figcaption>Workers &amp; availability</figcaption></figure></div></div>
  </div></div>
-<div class="card" style="flex:none;width:330px"><h2><span class="n">12</span>Expected benefits</h2>
-  <ul class="ben"><li>Less time spent deciding what to start</li><li>Fewer steps started before prerequisites</li><li>Hands-free steps in busy or noisy work</li><li>Live progress for supervisors</li></ul>
-  <div class="plan"><b>Proposed, not yet measured.</b> Planned test: task completion time with vs. without BandFlow.</div></div>
+<div class="card" style="flex:none;width:430px"><h2><span class="n">11</span>Project status</h2>
+  <div class="stat"><b class="ok">Built</b>Accounts and roles · work, steps and dependencies · progress · step delivery and DONE over BLE · band pairing · priority matrix · app, web and wristband screens · event queue</div>
+  <div class="stat"><b class="wip">In progress</b>Voice task entry · vibration alerts · battery and charging · optional AI service connection</div></div>
 </div>
 
 </div>
