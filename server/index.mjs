@@ -518,6 +518,30 @@ const removeSubtask = (taskId, subtaskId) => {
   return { progress, next, clearedStep: wasActive && !next };
 };
 
+// The watch lists at most this many tasks per work, so adding stops there.
+const maxSubtasksPerWork = 24;
+const maxSubtaskLength = 200;
+
+// Adds one step to the end of a work. A finished work is reopened, and if nothing is on the band
+// the new step becomes the active one. The caller has already checked the user may edit this work.
+const addSubtask = (taskId, description) => {
+  const text = String(description ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) throw validationError('The task cannot be empty.');
+  if (text.length > maxSubtaskLength) throw validationError(`A task can be at most ${maxSubtaskLength} characters.`);
+  let next = null;
+  const transaction = () => {
+    const { total, last } = db.prepare('SELECT COUNT(*) AS total, COALESCE(MAX(order_index), 0) AS last FROM subtasks WHERE task_id = ?').get(taskId);
+    if (total >= maxSubtasksPerWork) throw validationError(`A work can have at most ${maxSubtasksPerWork} tasks.`);
+    db.prepare("INSERT INTO subtasks (id, task_id, description, status, order_index) VALUES (?, ?, ?, 'pending', ?)").run(randomUUID(), taskId, text, last + 1);
+    db.prepare("UPDATE tasks SET status = 'In Progress', completed_at = NULL WHERE id = ? AND status = 'Done'").run(taskId);
+    const progress = refreshTaskProgress(taskId);
+    if (progress < 100) next = activateNextIfIdle(taskId);
+    return progress;
+  };
+  const progress = withTransaction(transaction);
+  return { progress, next };
+};
+
 const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', assignedTo, subtasks = [], eisenhowerCategory = null, createdBy }) => {
   if (!title?.trim()) throw new Error('A title is required.');
   if (!allowed.priorities.includes(priority)) throw new Error('Invalid priority.');
@@ -683,10 +707,19 @@ const handleBandRequest = async (bandId, request) => {
     };
   }
 
-  if (type === 'subtasks' || type === 'remove') {
+  if (type === 'subtasks' || type === 'remove' || type === 'add') {
     const work = db.prepare('SELECT id, assigned_to FROM tasks WHERE id = ?').get(String(request.work ?? ''));
     if (!work || work.assigned_to !== link.user_id) return { ok: false, error: 'Work not found.' };
     if (type === 'subtasks') return { ok: true, ...readBandSubtasks(work.id) };
+    if (type === 'add') {
+      try {
+        const result = addSubtask(work.id, request.text);
+        if (result.next) await dispatchNextSubtask(result.next);
+        return { ok: true, ...readBandSubtasks(work.id) };
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : 'Could not add the task.' };
+      }
+    }
     try {
       const result = removeSubtask(work.id, String(request.sub ?? ''));
       if (result.next) await dispatchNextSubtask(result.next);
@@ -834,6 +867,18 @@ const server = createServer(async (request, response) => {
       };
       withTransaction(transaction);
       return json(response, 200, { id: workId, status });
+    }
+
+    const subtaskListMatch = url.pathname.match(/^\/work\/([^/]+)\/subtasks$/);
+    if (request.method === 'POST' && subtaskListMatch) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      const work = db.prepare('SELECT id, assigned_to FROM tasks WHERE id = ?').get(subtaskListMatch[1]);
+      if (!work) return json(response, 404, { error: 'Work item not found.' });
+      if (user.role !== 'boss' && work.assigned_to !== user.id) return json(response, 403, { error: 'You can only edit work assigned to you.' });
+      const result = addSubtask(work.id, (await readBody(request)).description);
+      const band = result.next ? await dispatchNextSubtask(result.next) : null;
+      return json(response, 201, { progress: result.progress, next: result.next, band });
     }
 
     if (request.method === 'DELETE' && subtaskMatch) {
