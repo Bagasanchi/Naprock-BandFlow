@@ -15,7 +15,7 @@ The website has no database of its own; it calls the same Node API as the phone
 app. See `BandFlow-Web/README.md` for how to start it.
 
 The app workspace does not track the bridge repository as a submodule. The
-repositories communicate through the v1 contract in `contracts/ble-bridge-v1.md`.
+repositories communicate through the contract in `contracts/` (currently `ble-bridge-v3.md`).
 
 `naprock` tracks the shared repository directly
 (`origin` = <https://github.com/Tuvshu0-coder/naprock>).

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { WorkItem } from '../lib/work';
+import { getWorkers, type ApiWorker } from '../lib/api';
 import Avatar from './Avatar';
+import WorkloadGauge from './WorkloadGauge';
 import usePullToRefresh from './usePullToRefresh';
 
 type DashboardProps = {
@@ -22,6 +24,19 @@ type DashboardProps = {
 
 export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onLogout, onSeeProgress, onManageWorkers, onDeleteWork, userName, avatar, onOpenProfile, onOpenTask, onRefresh, workItems }: DashboardProps) {
   const [showCompleted, setShowCompleted] = useState(false);
+  const [workers, setWorkers] = useState<ApiWorker[]>([]);
+
+  // Open-work counts change whenever work is assigned or finished, so reload them with the work list.
+  useEffect(() => {
+    let isMounted = true;
+    getWorkers().then((result) => isMounted && setWorkers(result)).catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [workItems]);
+  // Fullest plates first, so an overloaded worker is the first thing a boss sees.
+  const workersByLoad = workers.filter((worker) => worker.workload).sort((a, b) => (b.open_works ?? 0) - (a.open_works ?? 0));
+
   const pullToRefresh = usePullToRefresh(onRefresh);
   const theme = isDarkTheme
     ? {
@@ -110,6 +125,21 @@ export default function Dashboard({ isDarkTheme, onAssignWork, onCreateWork, onL
             </View>
           </Pressable>
 
+          {workersByLoad.length > 0 && (
+            <View style={[styles.teamCard, styles.workloadCard, { backgroundColor: theme.surface, borderColor: theme.actionBorder }]}>
+              <Text style={[styles.teamTitle, { color: theme.title }]}>Team Workload</Text>
+              <Text style={[styles.teamSubtitle, { color: theme.body }]}>Open works per worker, before you assign more</Text>
+              {workersByLoad.map((worker) => (
+                <View key={worker.id} style={styles.workloadRow}>
+                  <Text style={[styles.workloadName, { color: theme.title }]} numberOfLines={1}>{worker.name}</Text>
+                  <View style={styles.workloadGauge}>
+                    <WorkloadGauge workload={worker.workload!} isDarkTheme={isDarkTheme} textColor={theme.body} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
           <View style={[styles.teamCard, { backgroundColor: theme.surface, borderColor: theme.actionBorder }]}>
             <View style={styles.teamHeader}>
               <View style={styles.teamHeaderCopy}>
@@ -179,6 +209,10 @@ const styles = StyleSheet.create({
   actionTitle: { fontSize: 15, fontWeight: '800' },
   actionDetail: { fontSize: 12, lineHeight: 17, marginTop: 2 },
   teamCard: { borderWidth: 1, borderRadius: 18, marginTop: 4, overflow: 'hidden', paddingHorizontal: 16 },
+  workloadCard: { paddingVertical: 16 },
+  workloadRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14 },
+  workloadName: { width: 96, fontSize: 13, fontWeight: '800' },
+  workloadGauge: { flex: 1 },
   teamHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 16, paddingBottom: 10 },
   teamHeaderCopy: { flex: 1 },
   teamTitle: { fontSize: 16, fontWeight: '900' },

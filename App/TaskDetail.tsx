@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Avatar from './Avatar';
-import type { SubtaskDetail, WorkItem } from '../lib/work';
+import { eisenhowerLabels, type SubtaskDetail, type WorkItem } from '../lib/work';
 
 type TaskDetailProps = {
   isDarkTheme: boolean;
@@ -10,12 +10,15 @@ type TaskDetailProps = {
   onStatusChanged: (status: WorkItem['status']) => Promise<void>;
   onRefresh: () => Promise<void>;
   onToggleSubtask: (subtaskId: string, done: boolean) => Promise<void>;
+  // Asks the AI to rewrite the unfinished steps; resolves to how many steps it wrote.
+  onBreakDown: () => Promise<number>;
 };
 
 const priorityColors: Record<string, string> = { High: '#E84545', Medium: '#D99324', Low: '#2EAD72' };
-const eisenhowerLabels: Record<string, string> = { do_first: 'Do first', schedule: 'Schedule', delegate: 'Delegate', eliminate: 'Eliminate' };
 
-export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChanged, onRefresh, onToggleSubtask }: TaskDetailProps) {
+export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChanged, onRefresh, onToggleSubtask, onBreakDown }: TaskDetailProps) {
+  const [isBreakingDown, setIsBreakingDown] = useState(false);
+  const [breakDownMessage, setBreakDownMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [togglingId, setTogglingId] = useState('');
   const [toggleError, setToggleError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -72,7 +75,7 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
   // Only server subtasks can be ticked (older work without subtask records shows a read-only list).
   const canToggle = Boolean(task.subtaskDetails?.length);
   const toggle = async (subtask: SubtaskDetail) => {
-    if (!canToggle || togglingId) return;
+    if (!canToggle || togglingId || subtask.locked) return;
     setTogglingId(subtask.id);
     setToggleError('');
     try {
@@ -83,6 +86,25 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
       setTogglingId('');
     }
   };
+
+  const breakDown = async () => {
+    setIsBreakingDown(true);
+    setBreakDownMessage(null);
+    try {
+      const steps = await onBreakDown();
+      setBreakDownMessage({ text: `AI wrote ${steps} step${steps === 1 ? '' : 's'}. The first one is on its way to the wristband.`, isError: false });
+    } catch (error) {
+      setBreakDownMessage({ text: error instanceof Error ? error.message : 'The work could not be broken down.', isError: true });
+    } finally {
+      setIsBreakingDown(false);
+    }
+  };
+
+  const confirmBreakDown = () => Alert.alert(
+    'Break down with AI?',
+    'The steps that are not done yet will be replaced by steps the AI writes. Finished steps stay.',
+    [{ text: 'Cancel', style: 'cancel' }, { text: 'Break down', onPress: () => void breakDown() }],
+  );
 
   const refresh = async () => {
     setIsRefreshing(true);
@@ -156,7 +178,7 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
                 key={subtask.id}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: isDone, busy: togglingId === subtask.id }}
-                disabled={!canToggle || Boolean(togglingId)}
+                disabled={!canToggle || Boolean(togglingId) || Boolean(subtask.locked)}
                 onPress={() => void toggle(subtask)}
                 style={({ pressed }) => [styles.subtaskRow, pressed && { opacity: 0.6 }]}
               >
@@ -165,19 +187,23 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
                 </View>
                 <Text style={[styles.subtaskText, { color: isActive ? theme.title : theme.body }, isActive && styles.activeSubtask, isDone && styles.completedSubtask]}>{subtask.description}</Text>
                 {isActive && <Text style={[styles.onWatch, { color: theme.progressFill, borderColor: theme.progressFill }]}>On watch</Text>}
+                {subtask.locked && <Text style={[styles.onWatch, { color: theme.body, borderColor: theme.border }]}>Locked</Text>}
               </Pressable>
             );
           })}
           {subtasks.length === 0 && <Text style={[styles.subtaskText, { color: theme.body }]}>No subtasks were added.</Text>}
           {toggleError ? <Text style={[styles.subtaskHint, { color: theme.unverified }]}>{toggleError}</Text> : null}
           <Text style={[styles.subtaskHint, { color: theme.body }]}>
-            {canToggle ? 'Tap a step to tick it, or finish it on the wristband. The next step is sent to the watch automatically.' : 'Steps are completed from the wristband. Pull down to refresh.'}
+            {canToggle ? 'Tap a step to tick it, or finish it on the wristband. The next step is sent to the watch automatically. A locked step opens when the step before it is done.' : 'Steps are completed from the wristband. Pull down to refresh.'}
           </Text>
         </View>
 
-        <Pressable style={[styles.breakDownButton, { backgroundColor: theme.breakDownBackground }]}>
-          <Text style={[styles.breakDownText, { color: theme.breakDownText }]}>🔧  Break Down</Text>
-        </Pressable>
+        {task.status !== 'Done' && (
+          <Pressable disabled={isBreakingDown} onPress={confirmBreakDown} style={[styles.breakDownButton, { backgroundColor: theme.breakDownBackground, opacity: isBreakingDown ? 0.6 : 1 }]}>
+            {isBreakingDown ? <ActivityIndicator color={theme.breakDownText} /> : <Text style={[styles.breakDownText, { color: theme.breakDownText }]}>🔧  Break Down</Text>}
+          </Pressable>
+        )}
+        {breakDownMessage ? <Text style={[styles.breakDownMessage, { color: breakDownMessage.isError ? theme.unverified : theme.verified }]}>{breakDownMessage.text}</Text> : null}
         {task.status !== 'Done' && (
           <View style={styles.actionRow}>
             <Pressable disabled={isUpdating || task.status === 'Review'} onPress={() => void submitStatus('Review')} style={[styles.actionButton, { backgroundColor: theme.progressFill, opacity: isUpdating || task.status === 'Review' ? 0.6 : 1 }]}>
@@ -230,6 +256,7 @@ const styles = StyleSheet.create({
   onWatch: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, fontSize: 10, fontWeight: '900', overflow: 'hidden' },
   subtaskHint: { fontSize: 11, lineHeight: 16, marginTop: 10 },
   breakDownButton: { marginHorizontal: 20, marginTop: 16, marginBottom: 18, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  breakDownMessage: { marginHorizontal: 20, marginTop: -8, marginBottom: 18, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   breakDownText: { fontSize: 14, fontWeight: '800' },
   actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 20, marginBottom: 18 },
   actionButton: { flex: 1, minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },

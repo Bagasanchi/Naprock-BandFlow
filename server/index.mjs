@@ -5,17 +5,27 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { hashPassword, minPasswordLength, verifyPassword } from './passwords.mjs';
+import { AiError, breakDownWithAi, classifyByRules, classifyWithAi, createAi, eisenhowerCategories, extractSkillsWithAi, raiseUrgency } from './ai.mjs';
+import { describeWorkload, keywordSkills, normalizeSkills, parseSkills, rankWorkers, readWorkloadLimits } from './recommend.mjs';
+import { seedDemo } from './demo.mjs';
 
 const port = Number(process.env.PORT ?? 8787);
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
-const databasePath = process.env.DATABASE_PATH ?? process.env.BAND_FLOW_DB_PATH ?? join(projectRoot, 'data', 'bandflow.sqlite');
+// "--demo" serves a separate database with made-up workers for screenshots, never the real one.
+const demoMode = process.argv.includes('--demo');
+const databasePath = demoMode
+  ? process.env.DEMO_DATABASE_PATH ?? join(projectRoot, 'data', 'demo.sqlite')
+  : process.env.DATABASE_PATH ?? process.env.BAND_FLOW_DB_PATH ?? join(projectRoot, 'data', 'bandflow.sqlite');
 const bleBridgeUrl = (process.env.BLE_BRIDGE_URL ?? 'http://127.0.0.1:5000/v1/dispatch').replace(/\/$/, '');
-// v2 adds the wristband session (pairing + RPC) and an optional band_id on dispatch; v1 bridges are still accepted for events.
-const bridgeApiVersion = 'v2';
-const supportedBridgeVersions = ['v1', 'v2'];
+// v2 added the wristband session (pairing + RPC); v3 adds locked steps, stored quadrants and voice error codes.
+// Older bridges are still accepted for events.
+const bridgeApiVersion = 'v3';
+const supportedBridgeVersions = ['v1', 'v2', 'v3'];
 const internalToken = process.env.BLE_INTERNAL_TOKEN ?? '';
 const aiBreakdownUrl = (process.env.AI_BREAKDOWN_URL ?? '').replace(/\/$/, '');
 const aiClassificationUrl = (process.env.AI_CLASSIFICATION_URL ?? '').replace(/\/$/, '');
+const ai = createAi();
+const workloadLimits = readWorkloadLimits();
 
 mkdirSync(dirname(databasePath), { recursive: true });
 const db = new DatabaseSync(databasePath);
@@ -33,7 +43,7 @@ const allowed = {
   priorities: ['Low', 'Medium', 'High'],
   workStatuses: ['In Progress', 'Review', 'Done'],
   eventTypes: ['task_received', 'task_started', 'subtask_started', 'task_completed', 'subtask_completed', 'voice_recorded'],
-  eisenhower: ['do_first', 'schedule', 'delegate', 'eliminate'],
+  eisenhower: eisenhowerCategories,
 };
 
 db.exec(`
@@ -129,9 +139,13 @@ if (tableExists('users') && !columnExists('users', 'status')) {
 }
 // Profile fields edited from the app's Profile screen (avatar holds a small JPEG data URI), and
 // the time a worker asked their boss for a password reset from the "Forgot password?" page.
-for (const column of ['phone', 'job_title', 'avatar', 'password_reset_requested_at']) {
+// skills holds a JSON array of short tags used by the worker recommendation; NULL means none yet.
+for (const column of ['phone', 'job_title', 'avatar', 'password_reset_requested_at', 'skills']) {
   if (!columnExists('users', column)) db.exec(`ALTER TABLE users ADD COLUMN ${column} TEXT`);
 }
+if (!columnExists('users', 'is_demo')) db.exec('ALTER TABLE users ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0');
+// Who chose a work's matrix category: 'ai', 'rules' (the fallback) or 'manual' (sent by the caller).
+if (!columnExists('tasks', 'eisenhower_source')) db.exec('ALTER TABLE tasks ADD COLUMN eisenhower_source TEXT');
 if (tableExists('work_items')) {
   const legacyRows = db.prepare('SELECT id, title, priority, status, progress, due, subtasks, assigned_to, created_by, created_at FROM work_items').all();
   const insertTask = db.prepare(`INSERT OR IGNORE INTO tasks (id, title, priority, status, progress, due, assigned_to, created_by, created_at, updated_at)
@@ -245,13 +259,13 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^\+?[0-9\s()-]{6,20}$/;
 
 const readProfile = (userId) => {
-  const row = db.prepare('SELECT id, email, full_name, role, phone, job_title, avatar, created_at FROM users WHERE id = ?').get(userId);
-  return row && { id: row.id, email: row.email, fullName: row.full_name, role: row.role, phone: row.phone ?? '', jobTitle: row.job_title ?? '', avatar: row.avatar ?? null, createdAt: row.created_at };
+  const row = db.prepare('SELECT id, email, full_name, role, phone, job_title, avatar, skills, created_at FROM users WHERE id = ?').get(userId);
+  return row && { id: row.id, email: row.email, fullName: row.full_name, role: row.role, phone: row.phone ?? '', jobTitle: row.job_title ?? '', avatar: row.avatar ?? null, skills: parseSkills(row.skills), createdAt: row.created_at };
 };
 
 const validationError = (message) => Object.assign(new Error(message), { status: 400 });
 
-const updateProfile = (userId, { fullName, email, phone, jobTitle, avatar }) => {
+const updateProfile = (userId, { fullName, email, phone, jobTitle, avatar, skills }) => {
   const current = readProfile(userId);
   const next = {
     fullName: fullName === undefined ? current.fullName : String(fullName).trim(),
@@ -259,6 +273,7 @@ const updateProfile = (userId, { fullName, email, phone, jobTitle, avatar }) => 
     phone: phone === undefined ? current.phone : String(phone).trim(),
     jobTitle: jobTitle === undefined ? current.jobTitle : String(jobTitle).trim(),
     avatar: avatar === undefined ? current.avatar : avatar,
+    skills: skills === undefined ? current.skills : normalizeSkills(skills),
   };
   if (!next.fullName || next.fullName.length > 80) throw validationError('Full name must be between 1 and 80 characters.');
   if (!emailPattern.test(next.email)) throw validationError('Enter a valid email address.');
@@ -268,8 +283,8 @@ const updateProfile = (userId, { fullName, email, phone, jobTitle, avatar }) => 
     throw validationError('Profile picture must be a JPEG, PNG, or WebP image under 1.5 MB.');
   }
   try {
-    db.prepare('UPDATE users SET full_name = ?, email = ?, phone = ?, job_title = ?, avatar = ? WHERE id = ?')
-      .run(next.fullName, next.email, next.phone || null, next.jobTitle || null, next.avatar, userId);
+    db.prepare('UPDATE users SET full_name = ?, email = ?, phone = ?, job_title = ?, avatar = ?, skills = ? WHERE id = ?')
+      .run(next.fullName, next.email, next.phone || null, next.jobTitle || null, next.avatar, JSON.stringify(next.skills), userId);
   } catch (error) {
     if (isUniqueViolation(error)) throw Object.assign(new Error('An account with that email already exists.'), { status: 409 });
     throw error;
@@ -313,46 +328,71 @@ const validateBreakdown = (result, fallbackTitle) => {
   const subtasks = parseSubtasks(result.subtasks);
   const orderIndexes = new Set(subtasks.map((item) => item.order_index));
   if (!subtasks.length || subtasks.length !== result.subtasks.length || orderIndexes.size !== subtasks.length) throw new Error('Structured breakdown contains invalid subtasks.');
-  if (subtasks.some((item) => item.depends_on_order_index != null && (item.depends_on_order_index === item.order_index || !orderIndexes.has(item.depends_on_order_index)))) {
+  // Each step has at most one prerequisite and it must come earlier, so steps can never wait on each
+  // other in a loop (1 -> 2 -> 1) that would leave the work impossible to finish.
+  if (subtasks.some((item) => item.depends_on_order_index != null && (item.depends_on_order_index >= item.order_index || !orderIndexes.has(item.depends_on_order_index)))) {
     throw new Error('Structured breakdown contains an invalid dependency.');
-  }
-  // Each subtask has at most one dependency, so a loop (1 -> 2 -> 1) would leave every step in it
-  // pending forever and the task could never finish.
-  const dependencyOf = new Map(subtasks.map((item) => [item.order_index, item.depends_on_order_index]));
-  for (const item of subtasks) {
-    const seen = new Set([item.order_index]);
-    for (let next = dependencyOf.get(item.order_index); next != null; next = dependencyOf.get(next)) {
-      if (seen.has(next)) throw new Error('Structured breakdown contains circular dependencies.');
-      seen.add(next);
-    }
   }
   return { title: typeof result.title === 'string' && result.title.trim() ? result.title.trim() : fallbackTitle, subtasks };
 };
 
-const requestAiBreakdown = async ({ title, priority, due, subtasks }) => {
-  if (!aiBreakdownUrl) return fallbackBreakdown(title, subtasks);
-  const response = await fetch(aiBreakdownUrl, {
+const postJson = async (url, token, body, timeoutMs) => {
+  const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(process.env.AI_BREAKDOWN_TOKEN ? { Authorization: `Bearer ${process.env.AI_BREAKDOWN_TOKEN}` } : {}) },
-    body: JSON.stringify({ title, priority, due, subtasks: subtasks ?? [] }),
-    signal: AbortSignal.timeout(15000),
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!response.ok) throw new Error(`AI breakdown service returned ${response.status}.`);
-  const result = await response.json();
-  return validateBreakdown(result, title);
+  if (!response.ok) throw new Error(`AI service returned ${response.status}.`);
+  return response.json();
 };
 
-const requestAiClassification = async ({ title, priority, due }) => {
-  if (!aiClassificationUrl) return null;
-  const response = await fetch(aiClassificationUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(process.env.AI_CLASSIFICATION_TOKEN ? { Authorization: `Bearer ${process.env.AI_CLASSIFICATION_TOKEN}` } : {}) },
-    body: JSON.stringify({ title, priority, due }),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!response.ok) throw new Error(`AI classification service returned ${response.status}.`);
-  const result = await response.json();
-  return allowed.eisenhower.includes(result.category) ? result.category : null;
+const logAiFallback = (what, error) => console.warn(`AI ${what} failed, using the fallback: ${error instanceof Error ? error.message : error}`);
+
+// Steps for a new work. Steps the boss typed are used as they are; otherwise the AI writes them, and if it
+// is switched off, unreachable or answers with something invalid, the work gets one step made from its title.
+// AI_BREAKDOWN_URL (a service that returns the finished structure) still takes the place of the prompt.
+const planBreakdown = async ({ title, priority, due, subtasks }) => {
+  if (parseSubtasks(subtasks).length) return { ...fallbackBreakdown(title, subtasks), source: 'manual' };
+  if (!aiBreakdownUrl && !ai.enabled) return { ...fallbackBreakdown(title), source: 'fallback' };
+  try {
+    if (aiBreakdownUrl) return { ...validateBreakdown(await postJson(aiBreakdownUrl, process.env.AI_BREAKDOWN_TOKEN, { title, priority, due, subtasks: [] }, 15000), title), source: 'ai' };
+    return { title, subtasks: await breakDownWithAi(ai, { title, priority, due }), source: 'ai' };
+  } catch (error) {
+    logAiFallback('breakdown', error);
+    return { ...fallbackBreakdown(title), source: 'fallback' };
+  }
+};
+
+// Matrix category for a new work: the AI's answer when it gives a valid one, the rules otherwise.
+const planCategory = async ({ title, priority, due }) => {
+  if (aiClassificationUrl || ai.enabled) {
+    try {
+      const category = aiClassificationUrl
+        ? (await postJson(aiClassificationUrl, process.env.AI_CLASSIFICATION_TOKEN, { title, priority, due }, 10000))?.category
+        : await classifyWithAi(ai, { title, priority, due });
+      if (allowed.eisenhower.includes(category)) return { category, source: 'ai' };
+      throw new AiError('AI returned an unknown matrix category.');
+    } catch (error) {
+      logAiFallback('classification', error);
+    }
+  }
+  return { category: classifyByRules({ priority, due }), source: 'rules' };
+};
+
+// The category shown for a work, the same for the app and the watch. Rule-made categories follow the
+// calendar, and a deadline that has come close makes an AI-made one urgent too. The stored value is kept
+// in step so the database always holds what is on screen.
+const currentCategory = (task) => {
+  const stored = allowed.eisenhower.includes(task.eisenhower_category) ? task.eisenhower_category : null;
+  if (task.status === 'Done' && stored) return stored;
+  const category = task.eisenhower_source === 'manual' && stored ? stored
+    : task.eisenhower_source === 'ai' && stored ? raiseUrgency(stored, task.due)
+    : classifyByRules(task);
+  if (category !== stored) {
+    db.prepare("UPDATE tasks SET eisenhower_category = ?, eisenhower_source = COALESCE(eisenhower_source, 'rules') WHERE id = ?").run(category, task.id);
+  }
+  return category;
 };
 
 const readSubtasks = (taskIds) => {
@@ -368,15 +408,31 @@ const readSubtasks = (taskIds) => {
   return grouped;
 };
 
+// A step is locked while the one step it depends on is not done yet.
+const lockedSubtaskIds = (subtasks) => {
+  const statusById = new Map(subtasks.map((subtask) => [subtask.id, subtask.status]));
+  return new Set(subtasks.filter((subtask) => subtask.status !== 'done' && subtask.depends_on && statusById.has(subtask.depends_on) && statusById.get(subtask.depends_on) !== 'done').map((subtask) => subtask.id));
+};
+
 const listWork = (user) => {
   const rows = user.role === 'boss'
-    ? db.prepare(`SELECT tasks.id, tasks.title, tasks.priority, tasks.status, tasks.progress, tasks.due, tasks.eisenhower_category,
+    ? db.prepare(`SELECT tasks.id, tasks.title, tasks.priority, tasks.status, tasks.progress, tasks.due, tasks.eisenhower_category, tasks.eisenhower_source,
         users.full_name AS assigned_to FROM tasks JOIN users ON users.id = tasks.assigned_to ORDER BY tasks.created_at DESC`).all()
-    : db.prepare(`SELECT tasks.id, tasks.title, tasks.priority, tasks.status, tasks.progress, tasks.due, tasks.eisenhower_category,
+    : db.prepare(`SELECT tasks.id, tasks.title, tasks.priority, tasks.status, tasks.progress, tasks.due, tasks.eisenhower_category, tasks.eisenhower_source,
         users.full_name AS assigned_to FROM tasks JOIN users ON users.id = tasks.assigned_to
         WHERE tasks.assigned_to = ? ORDER BY tasks.created_at DESC`).all(user.id);
   const grouped = readSubtasks(rows.map((row) => row.id));
-  return rows.map((row) => ({ ...row, subtasks: (grouped.get(row.id) ?? []).map((subtask) => subtask.description), subtask_details: grouped.get(row.id) ?? [] }));
+  return rows.map((row) => {
+    const details = grouped.get(row.id) ?? [];
+    const lockedIds = lockedSubtaskIds(details);
+    return {
+      ...row,
+      eisenhower_category: currentCategory(row),
+      eisenhower_source: row.eisenhower_source ?? 'rules',
+      subtasks: details.map((subtask) => subtask.description),
+      subtask_details: details.map((subtask) => ({ ...subtask, locked: lockedIds.has(subtask.id) })),
+    };
+  });
 };
 
 const findNextReadySubtask = (taskId) => db.prepare(`SELECT next.id, next.task_id, next.description, next.status, next.order_index
@@ -478,9 +534,11 @@ const dispatchNextSubtask = async (next) => next ? sendTaskToBand({ event_id: ra
 const setSubtaskDone = (taskId, subtaskId, done) => {
   let next = null;
   const transaction = () => {
-    const subtask = db.prepare('SELECT id, status FROM subtasks WHERE id = ? AND task_id = ?').get(subtaskId, taskId);
+    const subtask = db.prepare('SELECT id, status, depends_on FROM subtasks WHERE id = ? AND task_id = ?').get(subtaskId, taskId);
     if (!subtask) throw Object.assign(new Error('Subtask not found.'), { status: 404 });
     if (done) {
+      const prerequisite = subtask.depends_on ? db.prepare('SELECT description, status FROM subtasks WHERE id = ?').get(subtask.depends_on) : null;
+      if (prerequisite && prerequisite.status !== 'done') throw Object.assign(new Error(`This step is locked until "${prerequisite.description}" is done.`), { status: 409 });
       db.prepare("UPDATE subtasks SET status = 'done', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?").run(subtaskId);
       db.prepare(`INSERT INTO sync_events (event_id, task_id, subtask_id, event_type, created_at, sync_status, payload)
         VALUES (?, ?, ?, 'subtask_completed', CURRENT_TIMESTAMP, 'acknowledged', '{"source":"app"}')`).run(randomUUID(), taskId, subtaskId);
@@ -550,8 +608,10 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
   if (!worker) throw new Error('Worker not found.');
   if (eisenhowerCategory != null && !allowed.eisenhower.includes(eisenhowerCategory)) throw new Error('Invalid Eisenhower category.');
 
-  const breakdown = await requestAiBreakdown({ title: title.trim(), priority, due: String(due || 'Unscheduled'), subtasks });
-  const classification = eisenhowerCategory ?? await requestAiClassification({ title: breakdown.title, priority, due });
+  const work = { title: title.trim(), priority, due: String(due || 'Unscheduled').trim() || 'Unscheduled', subtasks };
+  // The two AI calls do not depend on each other, so they run side by side.
+  const [breakdown, planned] = await Promise.all([planBreakdown(work), eisenhowerCategory ? { category: eisenhowerCategory, source: 'manual' } : planCategory(work)]);
+  const classification = planned.category;
   const normalizedSubtasks = validateBreakdown(breakdown, title).subtasks;
   if (!normalizedSubtasks.length) throw new Error('At least one valid subtask is required.');
   const taskId = randomUUID();
@@ -560,8 +620,8 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
   let first = null;
 
   const transaction = () => {
-    db.prepare(`INSERT INTO tasks (id, title, priority, status, progress, due, eisenhower_category, assigned_to, created_by)
-      VALUES (?, ?, ?, 'In Progress', 0, ?, ?, ?, ?)`).run(taskId, breakdown.title, priority, String(due || 'Unscheduled').trim() || 'Unscheduled', classification, worker.id, createdBy);
+    db.prepare(`INSERT INTO tasks (id, title, priority, status, progress, due, eisenhower_category, eisenhower_source, assigned_to, created_by)
+      VALUES (?, ?, ?, 'In Progress', 0, ?, ?, ?, ?, ?)`).run(taskId, breakdown.title, priority, work.due, classification, planned.source, worker.id, createdBy);
     const insert = db.prepare(`INSERT INTO subtasks (id, task_id, description, status, depends_on, order_index)
       VALUES (?, ?, ?, 'pending', ?, ?)`);
     normalizedSubtasks.sort((a, b) => a.order_index - b.order_index).forEach((subtask) => insert.run(idByOrder.get(subtask.order_index), taskId, subtask.description, subtask.depends_on_order_index == null ? null : idByOrder.get(subtask.depends_on_order_index) ?? null, subtask.order_index));
@@ -577,36 +637,77 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
   withTransaction(transaction);
 
   const band = await sendTaskToBand(first ? { event_id: randomUUID(), task_id: taskId, subtask_id: first.id, text: first.description } : null);
-  return { id: taskId, title: breakdown.title, priority, status: 'In Progress', progress: 0, due: String(due || 'Unscheduled').trim() || 'Unscheduled', eisenhower_category: classification, assignedTo: worker.id, subtasks: normalizedSubtasks.map((item) => item.description), band };
+  // "ai" tells the app where the steps and the category came from: 'ai', or a fallback ('manual', 'fallback', 'rules').
+  return { id: taskId, title: breakdown.title, priority, status: 'In Progress', progress: 0, due: work.due, eisenhower_category: classification, assignedTo: worker.id, subtasks: normalizedSubtasks.map((item) => item.description), ai: { breakdown: breakdown.source, category: planned.source }, band };
+};
+
+// "Break Down" in the app: the AI rewrites the steps of an existing work that are not done yet; finished
+// steps stay. There is no rule to fall back on here, so when the AI cannot answer the work keeps its steps.
+const breakDownExistingWork = async (taskId) => {
+  if (!ai.enabled) throw Object.assign(new Error('AI breakdown is not set up on the server. Add AI_API_KEY (see server/README.md).'), { status: 503 });
+  const task = db.prepare('SELECT title, priority, due, status FROM tasks WHERE id = ?').get(taskId);
+  if (task.status === 'Done') throw validationError('This work is already done.');
+  const finishedSteps = db.prepare("SELECT description FROM subtasks WHERE task_id = ? AND status = 'done' ORDER BY order_index").all(taskId).map((row) => row.description);
+  let steps;
+  try {
+    steps = await breakDownWithAi(ai, { ...task, finishedSteps });
+    if (finishedSteps.length + steps.length > maxSubtasksPerWork) throw new AiError('AI returned more steps than a work can hold.');
+  } catch (error) {
+    console.warn(`AI breakdown failed, the work keeps its steps: ${error instanceof Error ? error.message : error}`);
+    throw Object.assign(new Error('The AI could not break this work down right now. Its steps were left as they are.'), { status: 502 });
+  }
+  const ids = steps.map(() => randomUUID());
+  return withTransaction(() => {
+    db.prepare("DELETE FROM subtasks WHERE task_id = ? AND status != 'done'").run(taskId);
+    const { last } = db.prepare('SELECT COALESCE(MAX(order_index), 0) AS last FROM subtasks WHERE task_id = ?').get(taskId);
+    const insert = db.prepare("INSERT INTO subtasks (id, task_id, description, status, depends_on, order_index) VALUES (?, ?, ?, 'pending', ?, ?)");
+    steps.forEach((step, index) => insert.run(ids[index], taskId, step.description, step.depends_on_order_index == null ? null : ids[step.depends_on_order_index - 1], last + step.order_index));
+    return { progress: refreshTaskProgress(taskId), steps: steps.length, next: activateNextIfIdle(taskId) };
+  });
+};
+
+// ---- Workers: skills, workload and the recommendation --------------------------------------------------
+
+// Open works are the works assigned to a worker that are not Done.
+const readWorkers = () => db.prepare(`SELECT users.id, users.full_name AS name, users.email, users.role, users.status, users.skills, users.created_at, users.password_reset_requested_at,
+    (SELECT COUNT(*) FROM tasks WHERE tasks.assigned_to = users.id AND tasks.status != 'Done') AS open_works
+  FROM users WHERE users.role = 'worker' ORDER BY users.full_name`).all()
+  .map((row) => ({ ...row, skills: parseSkills(row.skills), workload: describeWorkload(row.open_works, workloadLimits) }));
+
+// Ranks every worker for a work described in free text. The AI only names the skills the work needs
+// (keywords stand in when it cannot); the score itself is computed in recommend.mjs.
+const recommendWorkers = async (text) => {
+  const brief = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (brief.length > 2000) throw validationError('The work description is too long.');
+  const workers = readWorkers();
+  const knownSkills = [...new Set(workers.flatMap((worker) => worker.skills))];
+  let requiredSkills = [];
+  let source = 'none';
+  if (brief) {
+    requiredSkills = keywordSkills(brief, knownSkills);
+    source = 'keywords';
+    if (ai.enabled) {
+      try {
+        requiredSkills = await extractSkillsWithAi(ai, { text: brief, knownSkills });
+        source = 'ai';
+      } catch (error) {
+        logAiFallback('skill extraction', error);
+      }
+    }
+  }
+  return {
+    required_skills: requiredSkills,
+    source,
+    workload_limits: { busy_at: workloadLimits.busyAt, overloaded_at: workloadLimits.overloadedAt },
+    recommendations: rankWorkers(workers.map((worker) => ({ id: worker.id, name: worker.name, skills: worker.skills, openWorks: worker.open_works, status: worker.status })), requiredSkills, workloadLimits),
+  };
 };
 
 // ---- Wristband session: pairing and the requests the watch makes through the bridge ----------
 
 const bandCodeTtlSeconds = 300;
-const urgentWithinDays = 2;
 // The watch has little memory, so it lists at most this many works per quadrant and says how many more exist.
 const bandListLimit = 12;
-
-// The AI classifier is optional, so works without a category are placed by simple rules instead:
-// urgent = due within two days (or overdue); important = anything above Low priority.
-const daysUntilDue = (due) => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(due ?? '');
-  if (!match) return null;
-  const dueDay = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.round((dueDay.getTime() - today.getTime()) / 86_400_000);
-};
-
-const classifyByRules = ({ priority, due }) => {
-  const days = daysUntilDue(due);
-  const urgent = days !== null && days <= urgentWithinDays;
-  const important = priority !== 'Low';
-  if (important) return urgent ? 'do_first' : 'schedule';
-  return urgent ? 'delegate' : 'eliminate';
-};
-
-const categoryOf = (task) => task.eisenhower_category ?? classifyByRules(task);
 
 // The watch font only has ASCII, so truncation uses three dots rather than an ellipsis character.
 const clip = (text, length) => {
@@ -614,7 +715,7 @@ const clip = (text, length) => {
   return value.length > length ? `${value.slice(0, length - 3)}...` : value;
 };
 
-const activeWorkFor = (userId) => db.prepare(`SELECT id, title, priority, status, progress, due, eisenhower_category
+const activeWorkFor = (userId) => db.prepare(`SELECT id, title, priority, status, progress, due, eisenhower_category, eisenhower_source
   FROM tasks WHERE assigned_to = ? AND status != 'Done' ORDER BY created_at DESC`).all(userId);
 
 const createBandPairingCode = (bandId) => {
@@ -659,10 +760,11 @@ const linkBandWithCode = (userId, code) => {
 
 const readBandSubtasks = (taskId) => {
   const task = db.prepare('SELECT id, title, progress FROM tasks WHERE id = ?').get(taskId);
-  const rows = db.prepare('SELECT id, description, status FROM subtasks WHERE task_id = ? ORDER BY order_index').all(taskId);
+  const rows = db.prepare('SELECT id, description, status, depends_on FROM subtasks WHERE task_id = ? ORDER BY order_index').all(taskId);
+  const lockedIds = lockedSubtaskIds(rows);
   return {
     work: { id: task.id, title: clip(task.title, 40), progress: task.progress },
-    subtasks: rows.map((row) => ({ id: row.id, d: clip(row.description, 80), s: row.status === 'done' ? 'd' : row.status === 'active' ? 'a' : 'p' })),
+    subtasks: rows.map((row) => ({ id: row.id, d: clip(row.description, 80), s: row.status === 'done' ? 'd' : row.status === 'active' ? 'a' : lockedIds.has(row.id) ? 'l' : 'p' })),
   };
 };
 
@@ -686,13 +788,13 @@ const handleBandRequest = async (bandId, request) => {
 
   if (type === 'matrix') {
     const counts = { do_first: 0, schedule: 0, delegate: 0, eliminate: 0 };
-    for (const task of activeWorkFor(link.user_id)) counts[categoryOf(task)] += 1;
+    for (const task of activeWorkFor(link.user_id)) counts[currentCategory(task)] += 1;
     return { ok: true, counts };
   }
 
   if (type === 'works') {
     if (!allowed.eisenhower.includes(request.cat)) return { ok: false, error: 'Unknown quadrant.' };
-    const matching = activeWorkFor(link.user_id).filter((task) => categoryOf(task) === request.cat);
+    const matching = activeWorkFor(link.user_id).filter((task) => currentCategory(task) === request.cat);
     return {
       ok: true,
       cat: request.cat,
@@ -736,7 +838,7 @@ const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') return json(response, 204, {});
   const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`);
   try {
-    if (request.method === 'GET' && url.pathname === '/health') return json(response, 200, { ok: true, database: databasePath, bridge_api_version: bridgeApiVersion });
+    if (request.method === 'GET' && url.pathname === '/health') return json(response, 200, { ok: true, database: databasePath, bridge_api_version: bridgeApiVersion, ai: ai.enabled, demo: demoMode });
 
     if (request.method === 'POST' && url.pathname === '/auth/signup') {
       const { email, password, fullName } = await readBody(request);
@@ -787,7 +889,7 @@ const server = createServer(async (request, response) => {
       const user = requireUser(request, response);
       if (!user) return;
       if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can view worker details.' });
-      return json(response, 200, db.prepare("SELECT id, full_name AS name, email, role, status, created_at, password_reset_requested_at FROM users WHERE role = 'worker' ORDER BY full_name").all());
+      return json(response, 200, readWorkers());
     }
 
     const workerPasswordMatch = url.pathname.match(/^\/workers\/([^/]+)\/password$/);
@@ -810,13 +912,17 @@ const server = createServer(async (request, response) => {
     if (request.method === 'PATCH' && url.pathname.startsWith('/workers/')) {
       const user = requireUser(request, response);
       if (!user) return;
-      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can edit worker status.' });
+      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can edit workers.' });
       const workerId = url.pathname.slice('/workers/'.length);
-      const { status } = await readBody(request);
-      if (!['active', 'away', 'offline'].includes(status)) return json(response, 400, { error: 'Status must be active, away, or offline.' });
-      const result = db.prepare("UPDATE users SET status = ? WHERE id = ? AND role = 'worker'").run(status, workerId);
+      const body = await readBody(request);
+      if (body.status === undefined && body.skills === undefined) return json(response, 400, { error: 'Send a status, a skills list, or both.' });
+      if (body.status !== undefined && !['active', 'away', 'offline'].includes(body.status)) return json(response, 400, { error: 'Status must be active, away, or offline.' });
+      const skills = body.skills === undefined ? undefined : normalizeSkills(body.skills);
+      const result = db.prepare("UPDATE users SET status = COALESCE(?, status), skills = COALESCE(?, skills) WHERE id = ? AND role = 'worker'")
+        .run(body.status ?? null, skills === undefined ? null : JSON.stringify(skills), workerId);
       if (!result.changes) return json(response, 404, { error: 'Worker not found.' });
-      return json(response, 200, { id: workerId, status });
+      const saved = db.prepare('SELECT status, skills FROM users WHERE id = ?').get(workerId);
+      return json(response, 200, { id: workerId, status: saved.status, skills: parseSkills(saved.skills) });
     }
 
     if (request.method === 'GET' && url.pathname === '/work') {
@@ -831,6 +937,25 @@ const server = createServer(async (request, response) => {
       if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can assign work.' });
       const body = await readBody(request);
       return json(response, 201, await createTask({ ...body, createdBy: user.id }));
+    }
+
+    if (request.method === 'POST' && url.pathname === '/work/recommend') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can ask for a worker recommendation.' });
+      return json(response, 200, await recommendWorkers((await readBody(request)).text));
+    }
+
+    const breakdownMatch = url.pathname.match(/^\/work\/([^/]+)\/breakdown$/);
+    if (request.method === 'POST' && breakdownMatch) {
+      const user = requireUser(request, response);
+      if (!user) return;
+      const work = db.prepare('SELECT id, assigned_to FROM tasks WHERE id = ?').get(breakdownMatch[1]);
+      if (!work) return json(response, 404, { error: 'Work item not found.' });
+      if (user.role !== 'boss' && work.assigned_to !== user.id) return json(response, 403, { error: 'You can only edit work assigned to you.' });
+      const result = await breakDownExistingWork(work.id);
+      const band = result.next ? await dispatchNextSubtask(result.next) : null;
+      return json(response, 200, { ...result, band });
     }
 
     const subtaskMatch = url.pathname.match(/^\/work\/([^/]+)\/subtasks\/([^/]+)$/);
@@ -971,4 +1096,11 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, '0.0.0.0', () => console.log(`BandFlow SQLite API listening on http://0.0.0.0:${port}`));
+server.listen(port, '0.0.0.0', () => {
+  console.log(`BandFlow SQLite API listening on http://0.0.0.0:${port}`);
+  console.log(`AI: ${ai.status}`);
+  if (demoMode) {
+    const demo = seedDemo(db, withTransaction);
+    console.log(`DEMO MODE: serving ${databasePath} with made-up workers. Log in as ${demo.bossEmail} / ${demo.bossPassword}`);
+  }
+});

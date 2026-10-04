@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { WorkItem } from '../lib/work';
+import { eisenhowerLabels, type WorkItem } from '../lib/work';
 import usePullToRefresh from './usePullToRefresh';
 
 type WorkerTask = {
@@ -120,7 +120,7 @@ export default function WorkerTasks({ isDarkTheme, onBack, onOpenTask, onRefresh
                   <Text style={[styles.taskTitle, { color: theme.title }]}>{task.title}</Text>
                 </View>
                 <View style={styles.taskMetaRow}>
-                  <Text style={[styles.category, { color: theme.body }]}>Assigned work</Text>
+                  <Text style={[styles.category, { color: theme.body }]}>{eisenhowerLabels[task.eisenhowerCategory ?? ''] ?? 'Assigned work'}</Text>
                   <Text style={[styles.dot, { color: theme.muted }]}>•</Text>
                   <Text style={[styles.due, { color: task.priority === 'High' ? theme.danger : theme.body }]}>{task.priority} · {task.due}</Text>
                 </View>

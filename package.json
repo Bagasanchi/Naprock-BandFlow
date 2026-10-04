@@ -32,6 +32,8 @@
     "start:clean": "expo start --clear",
     "go": "expo start --go",
     "server": "node server/index.mjs",
+    "server:demo": "node server/index.mjs --demo",
+    "test": "node --test \"server/test/*.test.mjs\"",
     "reset-password": "node server/reset-password.mjs",
     "sync:naprock": "powershell -NoProfile -File scripts/sync-naprock.ps1",
     "dev-client": "expo start --dev-client",

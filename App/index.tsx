@@ -22,7 +22,7 @@ import WorkerDirectory from './WorkerDirectory';
 import SideMenu, { type SideMenuShortcut } from './SideMenu';
 import Profile from './Profile';
 import Settings from './Settings';
-import type { BandDelivery, WorkItem } from '../lib/work';
+import type { WorkItem } from '../lib/work';
 import * as api from '../lib/api';
 import type { Role } from '../lib/roleTheme';
 // hello
@@ -145,15 +145,19 @@ export default function App() {
     }
   };
 
-  const reportBandDelivery = (results: Array<{ band?: BandDelivery }>) => {
+  const reportBandDelivery = (results: api.CreatedWork[]) => {
     const failed = results.find((result) => !result.band?.sent);
+    // Say where the steps came from, so a boss knows when the AI was skipped.
+    const steps = results[0]?.ai?.breakdown === 'ai' ? `AI split it into ${results[0].subtasks?.length ?? 0} steps. `
+      : results[0]?.ai?.breakdown === 'fallback' ? 'AI steps were not available, so it has one step. Open the work and tap Break Down to try again. '
+      : '';
     if (!failed) {
-      Alert.alert('Work published', results.length > 1 ? `${results.length} tasks were created. The wristband shows the most recent one.` : 'The first step is now on the wristband.');
+      Alert.alert('Work published', results.length > 1 ? `${results.length} tasks were created. The wristband shows the most recent one.` : `${steps}The first step is now on the wristband.`);
       return;
     }
     Alert.alert(
       'Work saved, not on the wristband',
-      `${failed.band?.error ?? 'The BLE bridge did not answer.'}\n\nThe work is saved. To show it on the watch, start the bridge (python app.py in the naprock folder) with the watch switched on.`,
+      `${failed.band?.error ?? 'The BLE bridge did not answer.'}\n\n${steps}The work is saved. To show it on the watch, start the bridge (python app.py in the naprock folder) with the watch switched on.`,
     );
   };
 
@@ -384,6 +388,11 @@ export default function App() {
                   onToggleSubtask={async (subtaskId, done) => {
                     await api.setSubtaskDone(task.id, subtaskId, done);
                     await refreshWork();
+                  }}
+                  onBreakDown={async () => {
+                    const result = await api.breakDownWork(task.id);
+                    await refreshWork();
+                    return result.steps;
                   }}
                   onStatusChanged={async (status) => {
                     await api.updateWorkStatus(task.id, status);
