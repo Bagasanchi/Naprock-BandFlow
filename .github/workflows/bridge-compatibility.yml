@@ -48,15 +48,19 @@ jobs:
       - name: Check Node API syntax
         run: node --check server/index.mjs
 
+      - name: Run the server tests
+        run: npm test
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Check Flask bridge syntax
-        run: python -m py_compile naprock-bridge/app.py
+        run: python -m py_compile naprock-bridge/app.py naprock-bridge/voice.py
 
-      - name: Verify the v1 and v2 contracts are present
+      - name: Verify the contracts are present
         run: |
           test -s contracts/ble-bridge-v1.md
           test -s contracts/ble-bridge-v2.md
+          test -s contracts/ble-bridge-v3.md

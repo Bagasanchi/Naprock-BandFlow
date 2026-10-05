@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type * as ImagePickerModule from 'expo-image-picker';
 import Avatar from './Avatar';
+import SkillTagsEditor from './SkillTagsEditor';
 import { getProfile, updateProfile, type ApiProfile } from '../lib/api';
 import { getRoleTheme, type Role } from '../lib/roleTheme';
 
@@ -12,7 +13,7 @@ type ProfileProps = {
   onProfileChanged: (profile: ApiProfile) => void;
 };
 
-type Draft = { fullName: string; email: string; phone: string; jobTitle: string; avatar: string | null };
+type Draft = { fullName: string; email: string; phone: string; jobTitle: string; avatar: string | null; skills: string[] };
 
 const maxAvatarLength = 2_000_000;
 
@@ -30,7 +31,7 @@ function describeError(error: unknown, fallback: string) {
   if ((error as { status?: number })?.status === 404) return 'The BandFlow server is running an older version. Restart it with "npm run server" and try again.';
   return error instanceof Error ? error.message : fallback;
 }
-const toDraft = (profile: ApiProfile): Draft => ({ fullName: profile.fullName, email: profile.email, phone: profile.phone, jobTitle: profile.jobTitle, avatar: profile.avatar });
+const toDraft = (profile: ApiProfile): Draft => ({ fullName: profile.fullName, email: profile.email, phone: profile.phone, jobTitle: profile.jobTitle, avatar: profile.avatar, skills: profile.skills ?? [] });
 
 export default function Profile({ isDarkTheme, role, onBack, onProfileChanged }: ProfileProps) {
   const [profile, setProfile] = useState<ApiProfile | null>(null);
@@ -59,7 +60,7 @@ export default function Profile({ isDarkTheme, role, onBack, onProfileChanged }:
 
   const isDirty = Boolean(profile && draft && JSON.stringify(toDraft(profile)) !== JSON.stringify(draft));
 
-  const edit = (field: keyof Draft, value: string | null) => {
+  const edit = (field: keyof Draft, value: string | string[] | null) => {
     setSuccessMessage('');
     setDraft((current) => current && { ...current, [field]: value });
   };
@@ -179,6 +180,19 @@ export default function Profile({ isDarkTheme, role, onBack, onProfileChanged }:
                 ))}
               </View>
 
+              {profile.role === 'worker' ? (
+                <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <Text style={[styles.cardTitle, { color: theme.title }]}>Skills</Text>
+                  <Text style={[styles.skillsHint, { color: theme.body }]}>What you are good at. Your boss sees these when choosing who gets a work.</Text>
+                  <SkillTagsEditor
+                    skills={draft.skills}
+                    onChange={(skills) => edit('skills', skills)}
+                    disabled={isSaving}
+                    colors={{ border: theme.border, title: theme.title, body: theme.body, accent: theme.accent, accentSoft: theme.accentSoft, inputBg: theme.inputBg, placeholder: isDarkTheme ? 'rgba(255, 255, 255, 0.35)' : '#9AA8BC', danger: theme.danger }}
+                  />
+                </View>
+              ) : null}
+
               {errorMessage ? <Text style={[styles.message, { color: theme.danger }]}>{errorMessage}</Text> : null}
               {successMessage ? <Text style={[styles.message, { color: theme.success }]}>{successMessage}</Text> : null}
 
@@ -229,6 +243,7 @@ const styles = StyleSheet.create({
   photoOption: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   photoOptionText: { fontSize: 12, fontWeight: '800' },
   cardTitle: { fontSize: 16, fontWeight: '900', marginBottom: 2 },
+  skillsHint: { fontSize: 12, lineHeight: 17, marginTop: 4, marginBottom: 12 },
   label: { fontSize: 13, fontWeight: '700', marginTop: 14, marginBottom: 8 },
   input: { borderWidth: 1, borderRadius: 14, minHeight: 48, paddingHorizontal: 14, fontSize: 15 },
   message: { fontSize: 13, lineHeight: 18, fontWeight: '600' },

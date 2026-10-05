@@ -10,7 +10,27 @@ const tokenKey = 'bandflow_api_token';
 
 export type ApiUser = { id: string; email: string; fullName: string; role: 'worker' | 'boss' };
 export type WorkerStatus = 'active' | 'away' | 'offline';
-export type ApiWorker = { id: string; name: string; email?: string; role?: 'worker' | 'boss'; status?: WorkerStatus; created_at?: string; password_reset_requested_at?: string | null };
+export type WorkloadLevel = 'light' | 'busy' | 'overloaded';
+// open = works assigned to the worker that are not Done; the thresholds are set on the server.
+export type Workload = { open: number; level: WorkloadLevel; busy_at: number; overloaded_at: number };
+export type ApiWorker = { id: string; name: string; email?: string; role?: 'worker' | 'boss'; status?: WorkerStatus; created_at?: string; password_reset_requested_at?: string | null; skills?: string[]; open_works?: number; workload?: Workload };
+
+export type RecommendationBadge = 'recommended' | 'skill_mismatch' | 'high_workload' | 'away' | 'offline';
+export type WorkerRecommendation = {
+  worker_id: string;
+  name: string;
+  score: number;
+  skill_match: number;
+  open_works: number;
+  status: WorkerStatus;
+  reason: string;
+  skills: string[];
+  matched_skills: string[];
+  workload: Workload;
+  badges: RecommendationBadge[];
+};
+// source says where required_skills came from: the AI, the keyword fallback, or 'none' when no text was sent.
+export type RecommendationResult = { required_skills: string[]; source: 'ai' | 'keywords' | 'none'; recommendations: WorkerRecommendation[] };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await AsyncStorage.getItem(tokenKey);
@@ -56,8 +76,8 @@ export async function logout() {
   await AsyncStorage.removeItem(tokenKey);
 }
 
-export type ApiProfile = ApiUser & { phone: string; jobTitle: string; avatar: string | null; createdAt: string };
-export type ProfileUpdate = Partial<Pick<ApiProfile, 'fullName' | 'email' | 'phone' | 'jobTitle' | 'avatar'>>;
+export type ApiProfile = ApiUser & { phone: string; jobTitle: string; avatar: string | null; skills: string[]; createdAt: string };
+export type ProfileUpdate = Partial<Pick<ApiProfile, 'fullName' | 'email' | 'phone' | 'jobTitle' | 'avatar' | 'skills'>>;
 
 export function getApiUrl() {
   return apiUrl;
@@ -87,8 +107,18 @@ export async function updateWorkerStatus(workerId: string, status: WorkerStatus)
   return request<{ id: string; status: WorkerStatus }>(`/workers/${workerId}`, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
+// Boss only: replaces a worker's skill tags (workers edit their own in Profile).
+export async function updateWorkerSkills(workerId: string, skills: string[]) {
+  return request<{ id: string; skills: string[] }>(`/workers/${workerId}`, { method: 'PATCH', body: JSON.stringify({ skills }) });
+}
+
+// Boss only: every worker ranked for the described work, best first. Empty text ranks by workload alone.
+export async function recommendWorkers(text: string) {
+  return request<RecommendationResult>('/work/recommend', { method: 'POST', body: JSON.stringify({ text }) });
+}
+
 export async function getWork() {
-  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; subtasks?: string[] | string; subtask_details?: SubtaskDetail[]; assigned_to: string; eisenhower_category?: string | null }>>('/work');
+  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; subtasks?: string[] | string; subtask_details?: SubtaskDetail[]; assigned_to: string; eisenhower_category?: string | null; eisenhower_source?: string | null }>>('/work');
   return rows.map((row): WorkItem => ({
     id: row.id,
     title: row.title,
@@ -100,6 +130,7 @@ export async function getWork() {
     subtasks: parseSubtasks(row.subtasks),
     subtaskDetails: row.subtask_details ?? [],
     eisenhowerCategory: row.eisenhower_category ?? null,
+    eisenhowerSource: row.eisenhower_source ?? null,
   }));
 }
 
@@ -129,7 +160,16 @@ export async function deleteWork(workId: string) {
 
 // assignedTo is the worker's account id, so two workers with the same name never get each other's work.
 export async function createWork(work: { title: string; priority: WorkItem['priority']; due?: string; subtasks?: string[]; assignedTo: string }) {
-  return request<{ id: string; band: BandDelivery; ai?: { used: boolean; steps?: number; error?: string } }>('/work', { method: 'POST', body: JSON.stringify(work) });
+  return request<CreatedWork>('/work', { method: 'POST', body: JSON.stringify(work) });
+}
+
+// ai.breakdown is 'ai' when the AI wrote the steps, 'manual' when the boss typed them, and 'fallback' when
+// the AI could not be used and the work got a single step made from its title.
+export type CreatedWork = { id: string; band: BandDelivery; subtasks?: string[]; ai?: { breakdown: 'ai' | 'manual' | 'fallback'; category: 'ai' | 'rules' | 'manual' } };
+
+// Asks the AI to rewrite the steps of a work that are not done yet. Fails (and changes nothing) without AI.
+export async function breakDownWork(workId: string) {
+  return request<{ progress: number; steps: number; band: BandDelivery | null }>(`/work/${workId}/breakdown`, { method: 'POST' });
 }
 
 // Restores the previous login when the app starts; null when there is no valid saved session.

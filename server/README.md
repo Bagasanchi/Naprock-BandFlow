@@ -13,11 +13,16 @@ PORT=8787
 DATABASE_PATH=/var/lib/bandflow/bandflow.sqlite
 BLE_BRIDGE_URL=http://127.0.0.1:5000/v1/dispatch
 BLE_INTERNAL_TOKEN=replace-with-a-shared-secret
-AI_BREAKDOWN_URL=
-AI_BREAKDOWN_TOKEN=
-AI_CLASSIFICATION_URL=
-AI_CLASSIFICATION_TOKEN=
+AI_API_KEY=
+AI_BASE_URL=
+AI_MODEL=
+WORKLOAD_BUSY_AT=5
+WORKLOAD_OVERLOADED_AT=7
 ```
+
+The server reads these from its environment. To keep them in a file, start it with
+`node --env-file=.env server/index.mjs`; in PowerShell a single value can be set with
+`$env:AI_API_KEY = "..."` before `npm run server`.
 
 The server already listens on `0.0.0.0`, so the Pi can receive its address from DHCP. Give the Pi a stable hostname once, then use mDNS instead of its changing LAN address:
 
@@ -52,11 +57,13 @@ The API provides:
 - `POST /auth/login`
 - `POST /auth/forgot` (records a worker's password-reset request for their boss)
 - `GET /me`, `PATCH /me` (own profile), `POST /me/password` (change own password)
-- `GET /workers`
-- `PATCH /workers/:id` (boss only; status: `active`, `away`, or `offline`)
+- `GET /workers` (boss only; each worker with `skills`, `open_works` and `workload`)
+- `PATCH /workers/:id` (boss only; `status`: `active`, `away`, or `offline`, and/or `skills`: a list of tags)
 - `POST /workers/:id/password` (boss only; sets a temporary password and signs the worker out)
 - `GET /work`
 - `POST /work`
+- `POST /work/recommend` (boss only; ranks the workers for a described work)
+- `POST /work/:id/breakdown` (assigned worker or boss; the AI rewrites the steps that are not done)
 - `PATCH /work/:id` (assigned worker or boss; status: `In Progress`, `Review`, or `Done`)
 - `DELETE /work/:id` (boss only)
 - `POST /internal/ble/events` (Flask bridge only; idempotent completion events)
@@ -64,11 +71,54 @@ The API provides:
 
 When `POST /work` succeeds, the Node API validates the structured subtask response, stores the task and subtasks in one transaction, marks the first ready subtask active, and forwards it to the Flask BLE bridge. If the bridge is offline, the work remains saved and the response includes `band.sent: false`. When Flask later sends a `subtask_completed` event, Node marks it done, calculates progress, selects the next dependency-ready subtask, and dispatches it.
 
-## AI task planning
+## AI layer
 
-Set `GEMINI_API_KEY` in `.env` (a free key from <https://aistudio.google.com> works) and `npm run server` loads it. When work is created **without subtasks**, the server asks Gemini to split the title into 3 to 6 short steps for the wristband and to pick the Eisenhower category (`server/ai.mjs`). Steps typed by the boss are always kept as they are. If the AI call fails or the free limit is reached, the work is still created with the title as its only step, and the response says why in `ai.error`. `GEMINI_MODEL` sets the model tried first; when a free model is busy the server falls back to the other free Flash models. On the free tier Google may use the content to improve its products, so keep private details out of task titles.
+Three of the four AI functions run here (the fourth, speech-to-text for the watch, runs in the BLE bridge).
+They are prompts, not trained models, and they are sent to whichever chat service you configure. Any service
+with the OpenAI-style `POST <base>/chat/completions` API works:
 
-The provider-neutral services below take over when `AI_BREAKDOWN_URL` is set. `AI_BREAKDOWN_URL` receives `{ title, priority, due, subtasks }` and must return `{ title, subtasks: [{ description, order_index, depends_on_order_index }] }`. `AI_CLASSIFICATION_URL` receives `{ title, priority, due }` and must return `{ category }`, where the category is one of `do_first`, `schedule`, `delegate`, or `eliminate`. Every response is validated before database writes. If no breakdown URL is configured, the server uses the subtasks supplied by the app, or creates one structured subtask from the title.
+| Service | Settings |
+| --- | --- |
+| OpenAI | `AI_API_KEY=sk-...` (model defaults to `gpt-4o-mini`; `OPENAI_API_KEY` is also accepted) |
+| Ollama on the same machine (free, no key) | `AI_BASE_URL=http://127.0.0.1:11434/v1` and `AI_MODEL=llama3.2` |
+| Anything else (Groq, OpenRouter, LM Studio, ...) | `AI_BASE_URL`, `AI_API_KEY` and `AI_MODEL` from that service |
+
+The server prints `AI: <model> at <url>` or `AI: off (...)` when it starts, and `GET /health` returns `ai: true|false`.
+
+| Function | What the AI does | Without AI, or when its answer is invalid |
+| --- | --- | --- |
+| Priority matrix | Sorts a new work into `do_first` / `schedule` / `delegate` / `eliminate` from its title, priority and deadline. | Rules: urgent = due within 2 days or overdue; important = priority above Low. |
+| Task breakdown | Turns a work without steps into ordered steps (short, plain ASCII for the watch); a step may depend on one earlier step and stays locked until it is done. | The steps the boss typed, else one step made from the title. **Break Down** in the app retries later. |
+| Worker recommendation | Names the skills a described work needs. | Keyword match of the work text against the team's skill tags. |
+
+Every answer is checked before anything is saved (see `server/ai.mjs`); a bad answer is logged and the
+fallback is used, so creating work never fails because of the AI. The score of a recommendation is plain
+arithmetic on skills and open works (`server/recommend.mjs`, formula in `contracts/ble-bridge-v3.md`).
+
+`WORKLOAD_BUSY_AT` and `WORKLOAD_OVERLOADED_AT` set how many open works make a worker Busy and Overloaded.
+
+`AI_BREAKDOWN_URL` and `AI_CLASSIFICATION_URL` (with `..._TOKEN`) are still honoured for a service of your own that returns the finished structure: the first receives `{ title, priority, due, subtasks }` and must return `{ title, subtasks: [{ description, order_index, depends_on_order_index }] }`; the second receives `{ title, priority, due }` and must return `{ category }`. When set, they replace the prompt for that function; the same validation and fallbacks apply.
+
+## Tests
+
+```bash
+npm test
+```
+
+runs the scoring and validation tests and an end-to-end test that starts the server on a throwaway database
+with a stand-in AI service (good answers, garbage, and unreachable).
+
+## Demo data for screenshots
+
+```bash
+npm run server:demo
+```
+
+serves a **separate** database (`data/demo.sqlite`, not in git) with three made-up workers, and prints a
+one-time login for a demo boss. For the work "Design the new menu card" the Smart assignment screen shows
+Haruka (Design, 2 open works, 94%, Recommended), Sara (Design, 7 open, 58%, High workload) and Kenji
+(Programming, 1 open, 31%, Skill mismatch). Every start resets the demo people; the real database is never
+touched, and demo workers cannot log in. Stop the normal server first: both use the same port.
 
 ## Safe startup
 

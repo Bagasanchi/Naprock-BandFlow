@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { getWorkers, resetWorkerPassword, updateWorkerStatus, type ApiWorker, type WorkerStatus } from '../lib/api';
+import { getWorkers, resetWorkerPassword, updateWorkerSkills, updateWorkerStatus, type ApiWorker, type WorkerStatus } from '../lib/api';
+import SkillTagsEditor from './SkillTagsEditor';
+import WorkloadGauge from './WorkloadGauge';
 
 type WorkerDirectoryProps = {
   isDarkTheme: boolean;
@@ -47,6 +49,20 @@ export default function WorkerDirectory({ isDarkTheme, onBack }: WorkerDirectory
     }
   };
 
+  // Skills save as soon as a tag is added or removed; a failed save puts the old list back.
+  const setSkills = async (workerId: string, skills: string[]) => {
+    const previous = workers.find((worker) => worker.id === workerId)?.skills ?? [];
+    setErrorMessage('');
+    setWorkers((current) => current.map((worker) => worker.id === workerId ? { ...worker, skills } : worker));
+    try {
+      const saved = await updateWorkerSkills(workerId, skills);
+      setWorkers((current) => current.map((worker) => worker.id === workerId ? { ...worker, skills: saved.skills } : worker));
+    } catch (error) {
+      setWorkers((current) => current.map((worker) => worker.id === workerId ? { ...worker, skills: previous } : worker));
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to save the skills.');
+    }
+  };
+
   const openReset = (workerId: string) => {
     setResettingId((current) => current === workerId ? '' : workerId);
     setTemporaryPassword('');
@@ -83,7 +99,7 @@ export default function WorkerDirectory({ isDarkTheme, onBack }: WorkerDirectory
           <Pressable onPress={onBack} style={[styles.backButton, { borderColor: theme.border }]}><Text style={[styles.backText, { color: theme.accent }]}>Back</Text></Pressable>
           <View style={styles.headingCopy}>
             <Text style={[styles.title, { color: theme.title }]}>Workers</Text>
-            <Text style={[styles.subtitle, { color: theme.body }]}>View worker accounts and availability</Text>
+            <Text style={[styles.subtitle, { color: theme.body }]}>Accounts, availability, skills and workload</Text>
           </View>
         </View>
 
@@ -109,6 +125,19 @@ export default function WorkerDirectory({ isDarkTheme, onBack }: WorkerDirectory
                   <Text style={[styles.resetBadgeText, { color: theme.away }]}>🔑  Password reset requested {worker.password_reset_requested_at.slice(0, 16).replace('T', ' ')}</Text>
                 </View>
               ) : null}
+              {worker.workload ? (
+                <View style={styles.section}>
+                  <WorkloadGauge workload={worker.workload} isDarkTheme={isDarkTheme} textColor={theme.body} />
+                </View>
+              ) : null}
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.body }]}>SKILLS</Text>
+                <SkillTagsEditor
+                  skills={worker.skills ?? []}
+                  onChange={(skills) => void setSkills(worker.id, skills)}
+                  colors={{ border: theme.border, title: theme.title, body: theme.body, accent: theme.accent, accentSoft: `${theme.accent}22`, inputBg: theme.inputBg, placeholder: isDarkTheme ? 'rgba(255, 255, 255, 0.35)' : '#9AA8BC', danger: theme.danger }}
+                />
+              </View>
               <View style={styles.statusRow}>
                 {statuses.map((option) => {
                   const selected = option === status;
@@ -167,6 +196,8 @@ const styles = StyleSheet.create({
   name: { fontSize: 16, fontWeight: '800' },
   detail: { fontSize: 12, marginTop: 3 },
   statusLabel: { fontSize: 12, fontWeight: '900', textTransform: 'capitalize' },
+  section: { marginTop: 16 },
+  sectionLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 0.9, marginBottom: 8 },
   statusRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
   statusButton: { flex: 1, minHeight: 38, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   statusButtonText: { fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },

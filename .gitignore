@@ -38,6 +38,8 @@ yarn-error.*
 server/data/
 data/*.sqlite-wal
 data/*.sqlite-shm
+# Made-up workers for screenshots (npm run server:demo)
+data/demo.sqlite
 
 # typescript
 *.tsbuildinfo
