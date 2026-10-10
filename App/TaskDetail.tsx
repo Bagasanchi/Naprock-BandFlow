@@ -136,6 +136,11 @@ export default function TaskDetail({ isDarkTheme, task, workerName, onStatusChan
             {task.eisenhowerCategory ? <Text style={[styles.metaText, { color: theme.body }]}>{eisenhowerLabels[task.eisenhowerCategory] ?? task.eisenhowerCategory}</Text> : null}
             <Text style={[styles.metaText, { color: theme.body }]}>Due {task.due}</Text>
           </View>
+          {task.eisenhowerCategory && task.eisenhowerReason ? (
+            <Text style={[styles.matrixReason, { color: theme.body }]}>
+              {task.eisenhowerReasonBy === 'ai' ? 'AI: ' : ''}{task.eisenhowerReason}
+            </Text>
+          ) : null}
 
           <View style={styles.overallProgressGroup}>
             <View style={[styles.overallProgressTrack, { backgroundColor: theme.progressTrack }]}>
@@ -230,6 +235,7 @@ const styles = StyleSheet.create({
   priorityGroup: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   priorityDot: { width: 12, height: 12, borderRadius: 6 },
   metaText: { fontSize: 13, fontWeight: '700' },
+  matrixReason: { fontSize: 12, lineHeight: 17, marginTop: 8 },
   overallProgressGroup: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
   overallProgressTrack: { flex: 1, height: 8, borderRadius: 99, overflow: 'hidden' },
   overallProgressFill: { height: '100%', borderRadius: 99 },

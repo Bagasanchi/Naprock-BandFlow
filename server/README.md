@@ -18,6 +18,7 @@ AI_BASE_URL=
 AI_MODEL=
 WORKLOAD_BUSY_AT=5
 WORKLOAD_OVERLOADED_AT=7
+MATRIX_REFRESH_MS=600000
 ```
 
 The server reads these from its environment. To keep them in a file, start it with
@@ -63,6 +64,7 @@ The API provides:
 - `GET /work`
 - `POST /work`
 - `POST /work/recommend` (boss only; ranks the workers for a described work)
+- `POST /work/breakdown` (boss only; AI steps for a work that is not created yet, nothing is saved)
 - `POST /work/:id/breakdown` (assigned worker or boss; the AI rewrites the steps that are not done)
 - `PATCH /work/:id` (assigned worker or boss; status: `In Progress`, `Review`, or `Done`)
 - `DELETE /work/:id` (boss only)
@@ -87,7 +89,7 @@ The server prints `AI: <model> at <url>` or `AI: off (...)` when it starts, and 
 
 | Function | What the AI does | Without AI, or when its answer is invalid |
 | --- | --- | --- |
-| Priority matrix | Sorts a new work into `do_first` / `schedule` / `delegate` / `eliminate` from its title, priority and deadline. | Rules: urgent = due within 2 days or overdue; important = priority above Low. |
+| Priority matrix | Places each work in `do_first` / `schedule` / `delegate` / `eliminate` and writes one sentence saying why, for a new work and again once a day for every open work (many works per request). | Rules: urgent = due within 2 days or overdue; important = priority above Low. |
 | Task breakdown | Turns a work without steps into ordered steps (short, plain ASCII for the watch); a step may depend on one earlier step and stays locked until it is done. | The steps the boss typed, else one step made from the title. **Break Down** in the app retries later. |
 | Worker recommendation | Names the skills a described work needs. | Keyword match of the work text against the team's skill tags. |
 
@@ -96,6 +98,10 @@ fallback is used, so creating work never fails because of the AI. The score of a
 arithmetic on skills and open works (`server/recommend.mjs`, formula in `contracts/ble-bridge-v3.md`).
 
 `WORKLOAD_BUSY_AT` and `WORKLOAD_OVERLOADED_AT` set how many open works make a worker Busy and Overloaded.
+
+`MATRIX_REFRESH_MS` is how often the server looks for open works the AI has not classified today (the matrix
+depends on the date). The default is 10 minutes; each round is one request for up to 20 works, and nothing is
+sent when every work is already up to date.
 
 `AI_BREAKDOWN_URL` and `AI_CLASSIFICATION_URL` (with `..._TOKEN`) are still honoured for a service of your own that returns the finished structure: the first receives `{ title, priority, due, subtasks }` and must return `{ title, subtasks: [{ description, order_index, depends_on_order_index }] }`; the second receives `{ title, priority, due }` and must return `{ category }`. When set, they replace the prompt for that function; the same validation and fallbacks apply.
 
