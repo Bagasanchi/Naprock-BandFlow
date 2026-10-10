@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  AiError, breakDownWithAi, classifyByRules, classifyWithAi, createAi, extractSkillsWithAi, raiseUrgency, toWatchText,
-  validateBreakdownAnswer, validateClassification, validateSkillsAnswer,
+  AiError, breakDownWithAi, classifyByRules, classifyWithAi, createAi, extractSkillsWithAi, localDate, quadrantOf, raiseUrgency, reasonByRules,
+  toWatchText, validateBreakdownAnswer, validateClassificationAnswer, validateSkillsAnswer,
 } from '../ai.mjs';
 
 // A stand-in for the chat-completions endpoint: answers every request with the given text.
@@ -24,29 +24,59 @@ test('AI is off without a key and on with one', () => {
   assert.equal(createAi({ OPENAI_API_KEY: 'k' }).enabled, true);
 });
 
+const answer = (...items) => JSON.stringify({ items });
+const entry = (id, urgent, important, reason = 'A short reason.') => ({ id, urgent, important, quadrant: quadrantOf(urgent, important), reason });
+
 test('the request is a standard chat completion with the key as a bearer token', async () => {
   const calls = [];
-  const ai = createAi({ AI_API_KEY: 'secret', AI_BASE_URL: 'http://ai.test/v1/', AI_MODEL: 'some-model' }, fakeFetch('{"category":"schedule"}', { calls }));
+  const ai = createAi({ AI_API_KEY: 'secret', AI_BASE_URL: 'http://ai.test/v1/', AI_MODEL: 'some-model' }, fakeFetch(answer(entry('w1', false, true)), { calls }));
 
-  assert.equal(await classifyWithAi(ai, { title: 'Plan the menu', priority: 'High', due: 'Unscheduled' }, now), 'schedule');
+  const { results, rejected } = await classifyWithAi(ai, [{ id: 'w1', title: 'Plan the menu', priority: 'High', due: 'Unscheduled' }], now);
+  assert.deepEqual(results.get('w1'), { urgent: false, important: true, quadrant: 'schedule', reason: 'A short reason.' });
+  assert.deepEqual(rejected, []);
   assert.equal(calls[0].url, 'http://ai.test/v1/chat/completions');
   assert.equal(calls[0].headers.Authorization, 'Bearer secret');
   assert.equal(calls[0].body.model, 'some-model');
   assert.deepEqual(calls[0].body.messages.map((message) => message.role), ['system', 'user']);
-  assert.equal(JSON.parse(calls[0].body.messages[1].content).today, '2026-10-05');
+});
+
+test('the matrix prompt is the team\'s own, and the request has exactly the fields it describes', async () => {
+  const calls = [];
+  const ai = aiAnswering(answer(entry('a', true, true), entry('b', false, false)), { calls });
+  await classifyWithAi(ai, [
+    { id: 'a', title: 'Fix the gas leak', priority: 'High', due: day(1), status: 'In Progress', assigned_to: 'someone' },
+    { id: 'b', title: 'Tidy the shelf', priority: 'Low', due: 'Unscheduled' },
+  ], now);
+
+  const system = calls[0].body.messages[0].content;
+  assert.match(system, /^You are the priority-matrix classifier inside BandFlow, a task management system used with a wristband\./);
+  assert.match(system, /- urgent = the due date is within 2 days of the current date, or already overdue\./);
+  assert.match(system, /- important = the priority is above "Low" \(Medium, High, or Critical\)\./);
+  assert.match(system, /- Return every input item exactly once\. Do not add, merge, or drop items\./);
+  assert.match(system, /Output: valid JSON only, no markdown, no extra text:/);
+  // Many works go in one request, with nothing but id, title, priority and due_date.
+  assert.deepEqual(JSON.parse(calls[0].body.messages[1].content), {
+    today: '2026-10-05',
+    items: [
+      { id: 'a', title: 'Fix the gas leak', priority: 'High', due_date: day(1) },
+      { id: 'b', title: 'Tidy the shelf', priority: 'Low', due_date: null },
+    ],
+  });
 });
 
 test('JSON wrapped in a code fence or extra words is still read', async () => {
-  const ai = aiAnswering('Sure!\n```json\n{"category": "delegate"}\n```');
-  assert.equal(await classifyWithAi(ai, { title: 'x', priority: 'Low', due: day(1) }, now), 'delegate');
+  const ai = aiAnswering(`Sure!\n\`\`\`json\n${answer(entry('a', true, false))}\n\`\`\``);
+  assert.equal((await classifyWithAi(ai, [{ id: 'a', title: 'x', priority: 'Low', due: day(1) }], now)).results.get('a').quadrant, 'delegate');
 });
 
 test('an unreachable service, an error status and a non-JSON answer all throw AiError', async () => {
+  const works = [{ id: 'a', title: 'x', priority: 'Low', due: 'Unscheduled' }];
   const unreachable = createAi({ AI_API_KEY: 'k' }, async () => { throw new TypeError('fetch failed'); });
-  await assert.rejects(classifyWithAi(unreachable, { title: 'x', priority: 'Low', due: 'Unscheduled' }), AiError);
-  await assert.rejects(classifyWithAi(aiAnswering('{}', { status: 500 }), { title: 'x', priority: 'Low', due: 'Unscheduled' }), /returned 500/);
-  await assert.rejects(classifyWithAi(aiAnswering('I think it is urgent.'), { title: 'x', priority: 'Low', due: 'Unscheduled' }), /not a JSON object/);
-  await assert.rejects(classifyWithAi(createAi({}), { title: 'x', priority: 'Low', due: 'Unscheduled' }), /not configured/);
+  await assert.rejects(classifyWithAi(unreachable, works), AiError);
+  await assert.rejects(classifyWithAi(aiAnswering('{}', { status: 500 }), works), /returned 500/);
+  await assert.rejects(classifyWithAi(aiAnswering('I think it is urgent.'), works), /not a JSON object/);
+  await assert.rejects(classifyWithAi(aiAnswering('{"category":"schedule"}'), works), /no items list/);
+  await assert.rejects(classifyWithAi(createAi({}), works), /not configured/);
 });
 
 test('a server that rejects response_format gets one retry without it', async () => {
@@ -61,9 +91,81 @@ test('a server that rejects response_format gets one retry without it', async ()
   assert.equal(bodies.length, 2);
 });
 
-test('classification accepts only the four categories', () => {
-  assert.equal(validateClassification({ category: 'do_first' }), 'do_first');
-  for (const bad of [{ category: 'urgent' }, { category: 'Do First' }, {}, null, { category: ['do_first'] }]) assert.throws(() => validateClassification(bad), AiError);
+const asked = [
+  { id: 'soon-high', title: 'Fix the gas leak', priority: 'High', due_date: day(1) },
+  { id: 'late-low', title: 'Tidy the shelf', priority: 'Low', due_date: day(9) },
+  { id: 'no-date', title: 'Plan the menu', priority: 'Medium', due_date: null },
+];
+const allRight = [entry('soon-high', true, true), entry('late-low', false, false), entry('no-date', false, true)];
+const check = (items) => validateClassificationAnswer({ items }, asked, now);
+
+test('a right answer gives every work its quadrant and reason', () => {
+  const { results, rejected } = check(allRight);
+  assert.deepEqual([...results].map(([id, result]) => [id, result.quadrant]), [['soon-high', 'do_first'], ['late-low', 'eliminate'], ['no-date', 'schedule']]);
+  assert.deepEqual(rejected, []);
+  // The order of the answer does not matter, and typographic characters in the reason are made plain.
+  const shuffled = check([entry('no-date', false, true, 'It’s  important – no deadline'), allRight[0], allRight[1]]);
+  assert.equal(shuffled.results.get('no-date').reason, "It's important - no deadline");
+  assert.equal(shuffled.results.size, 3);
+});
+
+test('an item the AI got wrong is refused on its own and the rest of the batch is kept', () => {
+  const wrong = {
+    'urgent is not true or false': { ...entry('soon-high', true, true), urgent: 'yes' },
+    'important is missing': { id: 'soon-high', urgent: true, quadrant: 'do_first', reason: 'x' },
+    'an unknown quadrant': { ...entry('soon-high', true, true), quadrant: 'Do First' },
+    'a quadrant that does not follow from its own flags': { ...entry('soon-high', true, true), quadrant: 'schedule' },
+    'urgent that contradicts a due date one day away': entry('soon-high', false, true),
+    'important that contradicts a High priority': entry('soon-high', true, false),
+    'no reason': { ...entry('soon-high', true, true), reason: undefined },
+    'an empty reason': entry('soon-high', true, true, '   '),
+    'a reason that runs on': entry('soon-high', true, true, 'word '.repeat(40)),
+  };
+  for (const [what, bad] of Object.entries(wrong)) {
+    const { results, rejected } = check([bad, allRight[1], allRight[2]]);
+    assert.deepEqual(rejected.map((item) => item.id), ['soon-high'], what);
+    assert.ok(rejected[0].why.length > 5, what);
+    assert.deepEqual([...results.keys()], ['late-low', 'no-date'], what);
+  }
+});
+
+test('a dropped, repeated or invented item is caught', () => {
+  const dropped = check([allRight[0], allRight[2]]);
+  assert.deepEqual(dropped.rejected, [{ id: 'late-low', why: 'it was left out of the answer' }]);
+  assert.equal(dropped.results.size, 2);
+
+  const repeated = check([...allRight, entry('late-low', false, false)]);
+  assert.deepEqual(repeated.rejected, [{ id: 'late-low', why: 'it was answered more than once' }]);
+
+  const invented = check([...allRight, entry('made-up', true, true), 'nonsense', null]);
+  assert.deepEqual([...invented.results.keys()], ['soon-high', 'late-low', 'no-date']);
+  assert.deepEqual(invented.rejected, []);
+
+  for (const bad of [null, {}, { items: 'none' }, { category: 'do_first' }]) assert.throws(() => validateClassificationAnswer(bad, asked, now), AiError);
+});
+
+test('urgency follows the calendar exactly: two days away is urgent, three is not, overdue is', () => {
+  const dated = (due) => [{ id: 'x', title: 'x', priority: 'High', due_date: due }];
+  const accepts = (due, urgent) => validateClassificationAnswer({ items: [entry('x', urgent, true)] }, dated(due), now).results.has('x');
+  assert.equal(accepts(day(2), true), true);
+  assert.equal(accepts(day(2), false), false);
+  assert.equal(accepts(day(3), false), true);
+  assert.equal(accepts(day(3), true), false);
+  assert.equal(accepts(day(-4), true), true);
+  assert.equal(accepts(null, false), true);
+  assert.equal(accepts(null, true), false, 'a missing due date is never urgent');
+});
+
+test('only a missing priority leaves importance to the AI', () => {
+  const judged = (priority, important) => validateClassificationAnswer({ items: [entry('x', false, important)] }, [{ id: 'x', title: 'Fix the gas leak', priority, due_date: null }], now).results.has('x');
+  assert.equal(judged(null, true), true);
+  assert.equal(judged(null, false), true);
+  for (const priority of ['Medium', 'High', 'Critical']) {
+    assert.equal(judged(priority, true), true, priority);
+    assert.equal(judged(priority, false), false, priority);
+  }
+  assert.equal(judged('Low', false), true);
+  assert.equal(judged('Low', true), false);
 });
 
 test('rule fallback: urgent = due within 2 days or overdue, important = above Low', () => {
@@ -80,6 +182,29 @@ test('a close deadline makes an AI category urgent but never changes its importa
   assert.equal(raiseUrgency('eliminate', day(-1), now), 'delegate');
   assert.equal(raiseUrgency('schedule', day(5), now), 'schedule');
   assert.equal(raiseUrgency('delegate', day(5), now), 'delegate');
+});
+
+test('the rules and the quadrant table agree, including Critical priority', () => {
+  assert.deepEqual([quadrantOf(true, true), quadrantOf(false, true), quadrantOf(true, false), quadrantOf(false, false)], ['do_first', 'schedule', 'delegate', 'eliminate']);
+  assert.equal(classifyByRules({ priority: 'Critical', due: day(0) }, now), 'do_first');
+  assert.equal(classifyByRules({ priority: 'Critical', due: 'Unscheduled' }, now), 'schedule');
+  assert.equal(localDate(now), '2026-10-05');
+});
+
+test('without an AI sentence the rules explain the quadrant in a few plain words', () => {
+  const reason = (category, priority, due) => reasonByRules(category, { priority, due }, now);
+  assert.equal(reason('do_first', 'High', day(1)), 'Due tomorrow and priority is High.');
+  assert.equal(reason('do_first', 'Medium', day(0)), 'Due today and priority is Medium.');
+  assert.equal(reason('do_first', 'High', day(2)), 'Due in 2 days and priority is High.');
+  assert.equal(reason('do_first', 'High', day(-1)), 'Overdue by 1 day and priority is High.');
+  assert.equal(reason('delegate', 'Low', day(-3)), 'Overdue by 3 days and priority is Low.');
+  assert.equal(reason('schedule', 'Medium', day(9)), 'Not due for 9 days and priority is Medium.');
+  assert.equal(reason('schedule', 'High', 'Unscheduled'), 'No due date and priority is High.');
+  assert.equal(reason('eliminate', 'Low', 'Unscheduled'), 'No due date and priority is Low.');
+  // A category that something else chose against the priority is not explained by the priority.
+  assert.equal(reason('eliminate', 'High', 'Unscheduled'), 'No due date and it was judged less important.');
+  assert.equal(reason('schedule', 'Low', day(9)), 'Not due for 9 days and it was judged important.');
+  for (const text of [reason('do_first', 'High', day(-12)), reason('schedule', 'Medium', day(40))]) assert.ok(text.split(' ').length < 15, text);
 });
 
 test('a valid breakdown becomes ordered steps with at most one earlier prerequisite', () => {

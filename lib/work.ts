@@ -24,6 +24,10 @@ export type WorkItem = {
   eisenhowerCategory?: string | null;
   // Who chose it: 'ai', 'rules' (the fallback without AI) or 'manual'.
   eisenhowerSource?: string | null;
+  // One short sentence on why it is in that quadrant (the AI's, or written from the rules); null when sent by hand.
+  eisenhowerReason?: string | null;
+  // Who wrote that sentence: 'ai' or 'rules'. It can be 'rules' even when the AI chose the quadrant.
+  eisenhowerReasonBy?: string | null;
 };
 
 export const eisenhowerLabels: Record<string, string> = { do_first: 'Do first', schedule: 'Schedule', delegate: 'Delegate', eliminate: 'Eliminate' };

@@ -13,14 +13,54 @@ Every work now has a stored `eisenhower_category` and an `eisenhower_source`:
 
 | Source | Set when | Later changes |
 | --- | --- | --- |
-| `ai` | The AI returned one of the four categories when the work was created. | A deadline that comes within two days (or passes) raises urgency: `schedule` becomes `do_first`, `eliminate` becomes `delegate`. Importance stays the AI's call. |
-| `rules` | No AI is configured, it could not be reached, or its answer was not one of the four categories. | Recomputed from priority and due date whenever the work is read, so it follows the calendar. |
+| `ai` | The AI's answer for the work held up (see "Priority matrix classifier" below), when the work was created or in the daily refresh. | A deadline that comes within two days (or passes) raises urgency at once: `schedule` becomes `do_first`, `eliminate` becomes `delegate`. The AI is asked again the next day. |
+| `rules` | No AI is configured, it could not be reached, or its answer for this work was refused. | Recomputed from priority and due date whenever the work is read, so it follows the calendar. |
 | `manual` | The caller sent `eisenhowerCategory` to `POST /work`. | Never. |
 
 The rules are unchanged from v2: urgent means due within two days or overdue; important means priority above
 Low. `matrix` and `works` (watch) and `GET /work` (app, fields `eisenhower_category` and `eisenhower_source`)
 all read the category through the same function, so a work is always in the same quadrant on both screens.
 A work that is `Done` keeps the category it finished with.
+
+`GET /work` and the answer to `POST /work` also carry the sentence that explains the quadrant:
+
+| Field | Meaning |
+| --- | --- |
+| `eisenhower_reason` | One short sentence, or `null` for a `manual` category. |
+| `eisenhower_reason_by` | Who wrote that sentence: `ai` or `rules`. It is `rules` even for an `ai` category on any day the AI has not been asked yet, so a client never credits the AI with a sentence it did not write. |
+
+These are additions to the app's API only. Nothing the bridge or the watch sends or receives has changed.
+
+### Priority matrix classifier
+
+One request classifies any number of works. The system prompt is in `server/ai.mjs`; the user message and the
+expected answer are:
+
+```json
+{ "today": "2026-10-10", "items": [ { "id": "w1", "title": "Fix the gas leak", "priority": "High", "due_date": "2026-10-11" } ] }
+```
+
+```json
+{ "items": [ { "id": "w1", "urgent": true, "important": true, "quadrant": "do_first", "reason": "Due tomorrow and high priority." } ] }
+```
+
+`priority` is `Low`, `Medium`, `High`, `Critical` or `null`; `due_date` is `null` for work with no due date.
+The definitions are exact (urgent = due within 2 days or overdue; important = priority above Low), so the server
+checks each answered item against them and refuses, item by item:
+
+- an item that is missing, repeated, or whose `urgent` / `important` are not booleans;
+- a `quadrant` that is not one of the four or does not follow from its own `urgent` and `important`;
+- `urgent` that contradicts the due date, or `important` that contradicts a given priority (only a `null`
+  priority leaves importance to the AI, which then judges from the title);
+- a `reason` that is missing, empty, or longer than 120 characters.
+
+A refused item is placed by the rules; the other items of the same request are kept. Items the AI adds on its
+own are ignored.
+
+The matrix depends on the date, so the server asks again once a day: every open work that has not been checked
+today goes to the AI in requests of up to 20 (at start-up and then every `MATRIX_REFRESH_MS`, 10 minutes by
+default). Reading work never waits for this. A work whose answer was refused is not asked about again that day;
+a work the AI could not be reached for is tried on the next round.
 
 ## Locked steps
 
@@ -54,6 +94,24 @@ Unchanged packets. The transcript line gains `code` when `ok` is `false`, and `t
 
 The watch shows `error` as it is; `code` is for logs and for clients that want their own wording.
 
+### Repairing lost audio packets
+
+Bluetooth notifications are not acknowledged, so a few audio packets can go missing. When the end packet arrives
+and some data packets are missing, the bridge keeps what it has and writes this line to `RPC_RX` instead of failing:
+
+```json
+{"t": "audio_resend", "sid": 7, "missing": [12, 40, 41]}
+```
+
+The watch sends only those data packets again, with their original sequence numbers and the same packet size, and
+then sends the end packet again. This repeats for at most 4 rounds, and only while at most 40 packets are missing;
+a packet that arrives twice counts once. If the repair is not possible (too many packets missing, the start packet
+never arrived, or a packet never gets through), the bridge answers with the `audio_lost` transcript error and the
+watch sends the whole recording again under a new session number, at most 3 times in all.
+
+Watch firmware older than this change ignores `audio_resend` and would wait for a transcript that never comes, so
+the firmware and the bridge need to be updated together.
+
 ## AI functions (Node)
 
 All four are prompts sent to one configurable chat service (`AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`; see
@@ -61,7 +119,7 @@ All four are prompts sent to one configurable chat service (`AI_BASE_URL`, `AI_A
 
 | Function | AI answer that is accepted | Fallback |
 | --- | --- | --- |
-| Priority matrix | Exactly one of `do_first`, `schedule`, `delegate`, `eliminate`. | The rules above. |
+| Priority matrix | For each work sent: `urgent`, `important`, the `quadrant` that follows from them, and a short `reason`, all consistent with the due date and priority (see "Priority matrix classifier"). | The rules above, work by work. |
 | Task breakdown | 1 to 12 steps numbered from 1; each at most 80 plain ASCII characters; `depends_on` is `null` or an earlier step's number. | The steps the boss typed, else one step made from the title. |
 | Voice task adder | See "Voice input" (speech-to-text runs in the bridge). | An error on the watch; nothing is added. |
 | Worker recommendation | A list of at most 5 short skill names. | The team's skill tags whose words appear in the work text. |

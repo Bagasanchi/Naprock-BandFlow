@@ -75,6 +75,11 @@ export const isWatchText = (text) => /^[\x20-\x7E]+$/.test(text);
 
 export const eisenhowerCategories = ['do_first', 'schedule', 'delegate', 'eliminate'];
 export const urgentWithinDays = 2;
+const knownPriorities = ['Low', 'Medium', 'High', 'Critical'];
+// The longest explanation that is kept. The prompt asks for under 15 words; this leaves room for a wordy model.
+export const maxReasonLength = 120;
+
+export const localDate = (now = new Date()) => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
 // Whole days from today to a YYYY-MM-DD due date (negative when overdue); null for "Unscheduled".
 export const daysUntilDue = (due, now = new Date()) => {
@@ -90,34 +95,119 @@ export const isUrgent = (due, now = new Date()) => {
   return days !== null && days <= urgentWithinDays;
 };
 
-// Fallback without AI: urgent = due within two days (or overdue); important = anything above Low priority.
-export const classifyByRules = ({ priority, due }, now = new Date()) => {
-  const important = priority !== 'Low';
-  if (important) return isUrgent(due, now) ? 'do_first' : 'schedule';
-  return isUrgent(due, now) ? 'delegate' : 'eliminate';
-};
+// Everything above Low is important: Medium, High and Critical.
+export const isImportant = (priority) => priority !== 'Low';
 
-// The AI judged the work once, when it was created. A deadline that has since come close makes the work
-// urgent whatever the AI said then; importance stays the AI's call.
+export const quadrantOf = (urgent, important) => (important ? (urgent ? 'do_first' : 'schedule') : (urgent ? 'delegate' : 'eliminate'));
+
+// Fallback without AI. These are the same definitions the prompt below gives the AI.
+export const classifyByRules = ({ priority, due }, now = new Date()) => quadrantOf(isUrgent(due, now), isImportant(priority));
+
+// A category was chosen on one day. A deadline that has since come close makes the work urgent whatever
+// was decided then; its importance stays as it was.
 export const raiseUrgency = (category, due, now = new Date()) => {
   if (!isUrgent(due, now)) return category;
   return category === 'schedule' ? 'do_first' : category === 'eliminate' ? 'delegate' : category;
 };
 
-const classificationPrompt = `You sort work items for a small team into the Eisenhower matrix.
-Urgent means the deadline is about ${urgentWithinDays} days away or less, or has already passed. Work with no due date is not urgent.
-Important means the work matters to the team's goals; the boss's priority (Low, Medium, High) is a strong hint.
-Categories: do_first = urgent and important, schedule = important but not urgent, delegate = urgent but not important, eliminate = neither.
-Answer with JSON only: {"category": "do_first" | "schedule" | "delegate" | "eliminate"}`;
-
-export const validateClassification = (answer) => {
-  if (!eisenhowerCategories.includes(answer?.category)) throw new AiError('AI returned an unknown matrix category.');
-  return answer.category;
+// One plain sentence for why a work sits in its quadrant, used whenever there is no AI sentence for today.
+export const reasonByRules = (category, { priority, due }, now = new Date()) => {
+  const days = daysUntilDue(due, now);
+  const count = (number) => `${number} day${number === 1 ? '' : 's'}`;
+  const when = days === null ? 'No due date'
+    : days < 0 ? `Overdue by ${count(-days)}`
+    : days === 0 ? 'Due today'
+    : days === 1 ? 'Due tomorrow'
+    : days <= urgentWithinDays ? `Due in ${count(days)}`
+    : `Not due for ${count(days)}`;
+  const important = category === 'do_first' || category === 'schedule';
+  // The category disagrees with the priority only when something other than these rules chose it.
+  const why = important === isImportant(priority) ? `priority is ${priority}` : important ? 'it was judged important' : 'it was judged less important';
+  return `${when} and ${why}.`;
 };
 
-export const classifyWithAi = async (ai, { title, priority, due }, now = new Date()) => {
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return validateClassification(await ai.askJson(classificationPrompt, JSON.stringify({ title: String(title).slice(0, 300), priority, due, today, days_until_due: daysUntilDue(due, now) })));
+// The system prompt, word for word as the team wrote it. Only the number of days comes from the constant
+// above, so the prompt and the rule fallback cannot drift apart.
+const classificationPrompt = `You are the priority-matrix classifier inside BandFlow, a task management system used with a wristband.
+
+Your job: place each work item into exactly one of four quadrants.
+
+Definitions:
+- urgent = the due date is within ${urgentWithinDays} days of the current date, or already overdue.
+- important = the priority is above "Low" (Medium, High, or Critical).
+
+Quadrants:
+- "do_first"  = urgent AND important
+- "schedule"  = NOT urgent AND important
+- "delegate"  = urgent AND NOT important
+- "eliminate" = NOT urgent AND NOT important
+
+Rules:
+- Use only the fields given. Do not invent due dates or priorities.
+- If a due date is missing, treat the item as NOT urgent.
+- If a priority is missing, treat the item as important only if the title clearly describes a safety, customer, or deadline matter. Otherwise treat it as NOT important.
+- Return every input item exactly once. Do not add, merge, or drop items.
+- "reason" is one short sentence (under 15 words) in plain English.
+
+Input (JSON):
+{ "today": "YYYY-MM-DD", "items": [ { "id": "string", "title": "string", "priority": "Low|Medium|High|Critical|null", "due_date": "YYYY-MM-DD|null" } ] }
+
+Output: valid JSON only, no markdown, no extra text:
+{ "items": [ { "id": "string", "urgent": true, "important": true, "quadrant": "do_first|schedule|delegate|eliminate", "reason": "string" } ] }`;
+
+// What is wrong with one answered item, or null when it holds up. The definitions are exact, so an answer
+// that contradicts the due date or the priority is a mistake by the model, not a judgment. Only a missing
+// priority leaves the AI a real choice (it then decides importance from the title).
+const faultInClassification = (entry, item, now) => {
+  if (typeof entry.urgent !== 'boolean' || typeof entry.important !== 'boolean') return 'urgent and important must be true or false';
+  if (!eisenhowerCategories.includes(entry.quadrant)) return 'the quadrant is not one of the four';
+  if (entry.quadrant !== quadrantOf(entry.urgent, entry.important)) return 'the quadrant does not follow from urgent and important';
+  if (entry.urgent !== isUrgent(item.due_date, now)) return 'urgent contradicts the due date';
+  if (knownPriorities.includes(item.priority) && entry.important !== isImportant(item.priority)) return 'important contradicts the priority';
+  if (typeof entry.reason !== 'string') return 'the reason is missing';
+  const reason = toWatchText(entry.reason);
+  if (!reason || reason.length > maxReasonLength) return 'the reason is empty or too long';
+  return null;
+};
+
+// Checks the answer against the items that were sent, one by one. Returns the answers that hold up (by id)
+// and, for every other requested item, why it was refused, so one bad item never spoils the rest of a
+// batch. Items the AI added on its own are ignored. Throws only when there is no items list at all.
+export const validateClassificationAnswer = (answer, items, now = new Date()) => {
+  if (!Array.isArray(answer?.items)) throw new AiError('AI classification has no items list.');
+  const requested = new Map(items.map((item) => [item.id, item]));
+  const answered = new Map();
+  for (const entry of answer.items) {
+    const id = entry && typeof entry === 'object' ? entry.id : undefined;
+    if (requested.has(id)) answered.set(id, answered.has(id) ? 'twice' : entry);
+  }
+  const results = new Map();
+  const rejected = [];
+  for (const [id, item] of requested) {
+    const entry = answered.get(id);
+    const why = entry === undefined ? 'it was left out of the answer'
+      : entry === 'twice' ? 'it was answered more than once'
+      : faultInClassification(entry, item, now);
+    if (why) rejected.push({ id, why });
+    else results.set(id, { urgent: entry.urgent, important: entry.important, quadrant: entry.quadrant, reason: toWatchText(entry.reason) });
+  }
+  return { results, rejected };
+};
+
+// Classifies any number of works in one call. items: [{ id, title, priority, due }], where due is
+// YYYY-MM-DD or anything else for "no due date". Returns { results: Map(id -> { urgent, important,
+// quadrant, reason }), rejected: [{ id, why }] }. Throws AiError when the service fails.
+export const classifyWithAi = async (ai, items, now = new Date()) => {
+  const request = {
+    today: localDate(now),
+    items: items.map((item) => ({
+      id: String(item.id),
+      title: String(item.title).slice(0, 300),
+      priority: item.priority ?? null,
+      due_date: daysUntilDue(item.due, now) === null ? null : item.due,
+    })),
+  };
+  return validateClassificationAnswer(await ai.askJson(classificationPrompt, JSON.stringify(request)), request.items, now);
 };
 
 // ---- 2. Task breakdown ---------------------------------------------------------------------------------

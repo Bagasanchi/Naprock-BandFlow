@@ -118,7 +118,7 @@ export async function recommendWorkers(text: string) {
 }
 
 export async function getWork() {
-  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; subtasks?: string[] | string; subtask_details?: SubtaskDetail[]; assigned_to: string; eisenhower_category?: string | null; eisenhower_source?: string | null }>>('/work');
+  const rows = await request<Array<{ id: string; title: string; priority: WorkItem['priority']; status: WorkItem['status']; progress: number; due: string; subtasks?: string[] | string; subtask_details?: SubtaskDetail[]; assigned_to: string; eisenhower_category?: string | null; eisenhower_source?: string | null; eisenhower_reason?: string | null; eisenhower_reason_by?: string | null }>>('/work');
   return rows.map((row): WorkItem => ({
     id: row.id,
     title: row.title,
@@ -131,6 +131,8 @@ export async function getWork() {
     subtaskDetails: row.subtask_details ?? [],
     eisenhowerCategory: row.eisenhower_category ?? null,
     eisenhowerSource: row.eisenhower_source ?? null,
+    eisenhowerReason: row.eisenhower_reason ?? null,
+    eisenhowerReasonBy: row.eisenhower_reason_by ?? null,
   }));
 }
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { hashPassword, minPasswordLength, verifyPassword } from './passwords.mjs';
-import { AiError, breakDownWithAi, classifyByRules, classifyWithAi, createAi, eisenhowerCategories, extractSkillsWithAi, raiseUrgency } from './ai.mjs';
+import { AiError, breakDownWithAi, classifyByRules, classifyWithAi, createAi, eisenhowerCategories, extractSkillsWithAi, localDate, raiseUrgency, reasonByRules } from './ai.mjs';
 import { describeWorkload, keywordSkills, normalizeSkills, parseSkills, rankWorkers, readWorkloadLimits } from './recommend.mjs';
 import { seedDemo } from './demo.mjs';
 
@@ -146,6 +146,11 @@ for (const column of ['phone', 'job_title', 'avatar', 'password_reset_requested_
 if (!columnExists('users', 'is_demo')) db.exec('ALTER TABLE users ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0');
 // Who chose a work's matrix category: 'ai', 'rules' (the fallback) or 'manual' (sent by the caller).
 if (!columnExists('tasks', 'eisenhower_source')) db.exec('ALTER TABLE tasks ADD COLUMN eisenhower_source TEXT');
+// The AI's sentence explaining the category, and the day it was written (YYYY-MM-DD). The sentence is about
+// that day ("due tomorrow"), so it is shown only then and the AI is asked again on the next day.
+for (const column of ['eisenhower_reason', 'eisenhower_checked_on']) {
+  if (!columnExists('tasks', column)) db.exec(`ALTER TABLE tasks ADD COLUMN ${column} TEXT`);
+}
 if (tableExists('work_items')) {
   const legacyRows = db.prepare('SELECT id, title, priority, status, progress, due, subtasks, assigned_to, created_by, created_at FROM work_items').all();
   const insertTask = db.prepare(`INSERT OR IGNORE INTO tasks (id, title, priority, status, progress, due, assigned_to, created_by, created_at, updated_at)
@@ -364,20 +369,25 @@ const planBreakdown = async ({ title, priority, due, subtasks }) => {
   }
 };
 
-// Matrix category for a new work: the AI's answer when it gives a valid one, the rules otherwise.
+// Matrix category for a new work: the AI's answer when it holds up, the rules otherwise. "reason" is the
+// AI's sentence; when there is none, the sentence shown is written from the rules as the work is read.
 const planCategory = async ({ title, priority, due }) => {
-  if (aiClassificationUrl || ai.enabled) {
-    try {
-      const category = aiClassificationUrl
-        ? (await postJson(aiClassificationUrl, process.env.AI_CLASSIFICATION_TOKEN, { title, priority, due }, 10000))?.category
-        : await classifyWithAi(ai, { title, priority, due });
-      if (allowed.eisenhower.includes(category)) return { category, source: 'ai' };
+  try {
+    if (aiClassificationUrl) {
+      const category = (await postJson(aiClassificationUrl, process.env.AI_CLASSIFICATION_TOKEN, { title, priority, due }, 10000))?.category;
+      if (allowed.eisenhower.includes(category)) return { category, source: 'ai', reason: null };
       throw new AiError('AI returned an unknown matrix category.');
-    } catch (error) {
-      logAiFallback('classification', error);
     }
+    if (ai.enabled) {
+      const { results, rejected } = await classifyWithAi(ai, [{ id: 'new', title, priority, due }]);
+      const answer = results.get('new');
+      if (answer) return { category: answer.quadrant, source: 'ai', reason: answer.reason };
+      throw new AiError(`AI matrix answer refused: ${rejected[0]?.why ?? 'no answer'}.`);
+    }
+  } catch (error) {
+    logAiFallback('classification', error);
   }
-  return { category: classifyByRules({ priority, due }), source: 'rules' };
+  return { category: classifyByRules({ priority, due }), source: 'rules', reason: null };
 };
 
 // The category shown for a work, the same for the app and the watch. Rule-made categories follow the
@@ -393,6 +403,18 @@ const currentCategory = (task) => {
     db.prepare("UPDATE tasks SET eisenhower_category = ?, eisenhower_source = COALESCE(eisenhower_source, 'rules') WHERE id = ?").run(category, task.id);
   }
   return category;
+};
+
+// The sentence shown with the category. The AI's sentence is used on the day it was written, while the
+// work is still in the quadrant it describes; on any other day the rules write one, until the daily
+// refresh further down has asked the AI again. A category sent by the caller comes with no explanation.
+// "by" says who wrote the sentence ('ai' or 'rules'), so a client never credits the AI with a rule's words.
+const currentReason = (task, category) => {
+  if (task.eisenhower_source === 'manual') return { text: null, by: null };
+  const aiSentence = task.eisenhower_source === 'ai' && category === task.eisenhower_category ? task.eisenhower_reason ?? null : null;
+  if (task.status === 'Done') return { text: aiSentence, by: aiSentence ? 'ai' : null };
+  if (aiSentence && task.eisenhower_checked_on === localDate()) return { text: aiSentence, by: 'ai' };
+  return { text: reasonByRules(category, task), by: 'rules' };
 };
 
 const readSubtasks = (taskIds) => {
@@ -417,18 +439,22 @@ const lockedSubtaskIds = (subtasks) => {
 const listWork = (user) => {
   const rows = user.role === 'boss'
     ? db.prepare(`SELECT tasks.id, tasks.title, tasks.priority, tasks.status, tasks.progress, tasks.due, tasks.eisenhower_category, tasks.eisenhower_source,
-        users.full_name AS assigned_to FROM tasks JOIN users ON users.id = tasks.assigned_to ORDER BY tasks.created_at DESC`).all()
+        tasks.eisenhower_reason, tasks.eisenhower_checked_on, users.full_name AS assigned_to FROM tasks JOIN users ON users.id = tasks.assigned_to ORDER BY tasks.created_at DESC`).all()
     : db.prepare(`SELECT tasks.id, tasks.title, tasks.priority, tasks.status, tasks.progress, tasks.due, tasks.eisenhower_category, tasks.eisenhower_source,
-        users.full_name AS assigned_to FROM tasks JOIN users ON users.id = tasks.assigned_to
+        tasks.eisenhower_reason, tasks.eisenhower_checked_on, users.full_name AS assigned_to FROM tasks JOIN users ON users.id = tasks.assigned_to
         WHERE tasks.assigned_to = ? ORDER BY tasks.created_at DESC`).all(user.id);
   const grouped = readSubtasks(rows.map((row) => row.id));
-  return rows.map((row) => {
+  return rows.map(({ eisenhower_checked_on: checkedOn, ...row }) => {
     const details = grouped.get(row.id) ?? [];
     const lockedIds = lockedSubtaskIds(details);
+    const category = currentCategory(row);
+    const reason = currentReason({ ...row, eisenhower_checked_on: checkedOn }, category);
     return {
       ...row,
-      eisenhower_category: currentCategory(row),
+      eisenhower_category: category,
       eisenhower_source: row.eisenhower_source ?? 'rules',
+      eisenhower_reason: reason.text,
+      eisenhower_reason_by: reason.by,
       subtasks: details.map((subtask) => subtask.description),
       subtask_details: details.map((subtask) => ({ ...subtask, locked: lockedIds.has(subtask.id) })),
     };
@@ -620,8 +646,9 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
   let first = null;
 
   const transaction = () => {
-    db.prepare(`INSERT INTO tasks (id, title, priority, status, progress, due, eisenhower_category, eisenhower_source, assigned_to, created_by)
-      VALUES (?, ?, ?, 'In Progress', 0, ?, ?, ?, ?, ?)`).run(taskId, breakdown.title, priority, work.due, classification, planned.source, worker.id, createdBy);
+    // An AI answer is dated today. Anything else is left undated, so the daily refresh asks the AI about it.
+    db.prepare(`INSERT INTO tasks (id, title, priority, status, progress, due, eisenhower_category, eisenhower_source, eisenhower_reason, eisenhower_checked_on, assigned_to, created_by)
+      VALUES (?, ?, ?, 'In Progress', 0, ?, ?, ?, ?, ?, ?, ?)`).run(taskId, breakdown.title, priority, work.due, classification, planned.source, planned.reason ?? null, planned.reason ? localDate() : null, worker.id, createdBy);
     const insert = db.prepare(`INSERT INTO subtasks (id, task_id, description, status, depends_on, order_index)
       VALUES (?, ?, ?, 'pending', ?, ?)`);
     normalizedSubtasks.sort((a, b) => a.order_index - b.order_index).forEach((subtask) => insert.run(idByOrder.get(subtask.order_index), taskId, subtask.description, subtask.depends_on_order_index == null ? null : idByOrder.get(subtask.depends_on_order_index) ?? null, subtask.order_index));
@@ -638,7 +665,7 @@ const createTask = async ({ title, priority = 'Medium', due = 'Unscheduled', ass
 
   const band = await sendTaskToBand(first ? { event_id: randomUUID(), task_id: taskId, subtask_id: first.id, text: first.description } : null);
   // "ai" tells the app where the steps and the category came from: 'ai', or a fallback ('manual', 'fallback', 'rules').
-  return { id: taskId, title: breakdown.title, priority, status: 'In Progress', progress: 0, due: work.due, eisenhower_category: classification, assignedTo: worker.id, subtasks: normalizedSubtasks.map((item) => item.description), ai: { breakdown: breakdown.source, category: planned.source }, band };
+  return { id: taskId, title: breakdown.title, priority, status: 'In Progress', progress: 0, due: work.due, eisenhower_category: classification, eisenhower_reason: planned.reason ?? (planned.source === 'manual' ? null : reasonByRules(classification, work)), eisenhower_reason_by: planned.reason ? 'ai' : planned.source === 'manual' ? null : 'rules', assignedTo: worker.id, subtasks: normalizedSubtasks.map((item) => item.description), ai: { breakdown: breakdown.source, category: planned.source }, band };
 };
 
 // "Break Down" in the app: the AI rewrites the steps of an existing work that are not done yet; finished
@@ -1096,6 +1123,48 @@ const server = createServer(async (request, response) => {
   }
 });
 
+// ---- Keeping the matrix current ---------------------------------------------------------------------------
+
+// The matrix depends on today's date, so once a day every open work is put to the AI again, many in one
+// request. Reading work never waits for this: until a work has been checked today the rules place it, and
+// they follow the calendar by themselves. Works the AI could not be reached for are tried on the next round.
+const matrixRefreshMs = Number(process.env.MATRIX_REFRESH_MS) > 0 ? Number(process.env.MATRIX_REFRESH_MS) : 10 * 60 * 1000;
+const matrixBatchSize = 20;
+let matrixRefreshRunning = false;
+
+const refreshMatrix = async () => {
+  if (!ai.enabled || aiClassificationUrl || matrixRefreshRunning) return;
+  matrixRefreshRunning = true;
+  try {
+    for (let round = 0; round < 10; round += 1) {
+      const now = new Date();
+      const today = localDate(now);
+      const stale = db.prepare(`SELECT id, title, priority, due FROM tasks
+        WHERE status != 'Done' AND COALESCE(eisenhower_source, 'rules') != 'manual' AND COALESCE(eisenhower_checked_on, '') != ?
+        ORDER BY created_at, rowid LIMIT ?`).all(today, matrixBatchSize);
+      if (!stale.length) return;
+      const { results, rejected } = await classifyWithAi(ai, stale, now);
+      const store = db.prepare(`UPDATE tasks SET eisenhower_category = ?, eisenhower_source = ?, eisenhower_reason = ?, eisenhower_checked_on = ?
+        WHERE id = ? AND status != 'Done' AND COALESCE(eisenhower_source, 'rules') != 'manual'`);
+      withTransaction(() => {
+        for (const task of stale) {
+          const answer = results.get(task.id);
+          // A refused answer is not asked for again today; the rules place that work instead.
+          if (answer) store.run(answer.quadrant, 'ai', answer.reason, today, task.id);
+          else store.run(classifyByRules(task, now), 'rules', null, today, task.id);
+        }
+      });
+      for (const { id, why } of rejected) console.warn(`AI matrix answer for work ${id} refused (${why}); the rules place it today.`);
+      console.log(`AI matrix: ${results.size} of ${stale.length} open works classified for ${today}.`);
+      if (stale.length < matrixBatchSize) return;
+    }
+  } catch (error) {
+    logAiFallback('matrix refresh', error);
+  } finally {
+    matrixRefreshRunning = false;
+  }
+};
+
 server.listen(port, '0.0.0.0', () => {
   console.log(`BandFlow SQLite API listening on http://0.0.0.0:${port}`);
   console.log(`AI: ${ai.status}`);
@@ -1103,4 +1172,6 @@ server.listen(port, '0.0.0.0', () => {
     const demo = seedDemo(db, withTransaction);
     console.log(`DEMO MODE: serving ${databasePath} with made-up workers. Log in as ${demo.bossEmail} / ${demo.bossPassword}`);
   }
+  void refreshMatrix();
+  setInterval(() => void refreshMatrix(), matrixRefreshMs).unref();
 });
