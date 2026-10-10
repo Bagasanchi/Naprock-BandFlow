@@ -160,8 +160,17 @@ export async function deleteWork(workId: string) {
   return request<{ id: string }>(`/work/${workId}`, { method: 'DELETE' });
 }
 
+// One step of a breakdown. depends_on_order_index is the order_index of the step that must be done first.
+export type BreakdownStep = { description: string; order_index: number; depends_on_order_index: number | null };
+
+// Boss only: asks the AI for the steps of a work that is not created yet. Nothing is saved; pass the steps
+// (edited or not) to createWork as subtasks. Fails when the AI is off or its answer is unusable.
+export async function previewBreakdown(work: { title: string; priority?: WorkItem['priority']; due?: string }) {
+  return request<{ title: string; subtasks: BreakdownStep[] }>('/work/breakdown', { method: 'POST', body: JSON.stringify(work) });
+}
+
 // assignedTo is the worker's account id, so two workers with the same name never get each other's work.
-export async function createWork(work: { title: string; priority: WorkItem['priority']; due?: string; subtasks?: string[]; assignedTo: string }) {
+export async function createWork(work: { title: string; priority: WorkItem['priority']; due?: string; subtasks?: string[] | BreakdownStep[]; assignedTo: string }) {
   return request<CreatedWork>('/work', { method: 'POST', body: JSON.stringify(work) });
 }
 

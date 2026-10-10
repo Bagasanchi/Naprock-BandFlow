@@ -266,6 +266,35 @@ test('Break Down rewrites the unfinished steps with the AI and leaves the work a
   ]);
 });
 
+test('breakdown preview: boss only, returns AI steps without saving anything, and fails when the AI does', async () => {
+  aiMode = 'good';
+  const worksBefore = (await call(base, 'GET', '/work', { token: tokens.boss })).body.length;
+  assert.equal((await call(base, 'POST', '/work/breakdown', { token: tokens.worker, body: { title: 'Design the new menu card' } })).status, 403);
+  assert.equal((await call(base, 'POST', '/work/breakdown', { token: tokens.boss, body: { title: '  ' } })).status, 400);
+  assert.equal((await call(base, 'POST', '/work/breakdown', { token: tokens.boss, body: { title: 'Design the new menu card', priority: 'Urgent' } })).status, 400);
+
+  const preview = await call(base, 'POST', '/work/breakdown', { token: tokens.boss, body: { title: ' Design the new menu card ', priority: 'High' } });
+  assert.equal(preview.status, 200);
+  assert.deepEqual(preview.body, { title: 'Design the new menu card', subtasks: [
+    { description: 'Collect the dish list', order_index: 1, depends_on_order_index: null },
+    { description: 'Sketch the layout', order_index: 2, depends_on_order_index: 1 },
+    { description: 'Send it to the printer', order_index: 3, depends_on_order_index: 2 },
+  ] });
+  assert.equal((await call(base, 'GET', '/work', { token: tokens.boss })).body.length, worksBefore);
+
+  for (const mode of ['garbage', 'prose', 'down']) {
+    aiMode = mode;
+    assert.equal((await call(base, 'POST', '/work/breakdown', { token: tokens.boss, body: { title: 'Design the new menu card' } })).status, 502, mode);
+  }
+
+  // The previewed steps go back to POST /work as they are, and keep their order and locks.
+  const created = await call(base, 'POST', '/work', { token: tokens.boss, body: { title: preview.body.title, priority: 'High', assignedTo: 'old-worker', subtasks: preview.body.subtasks } });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.ai.breakdown, 'manual');
+  const saved = (await call(base, 'GET', '/work', { token: tokens.boss })).body.find((row) => row.id === created.body.id);
+  assert.deepEqual(saved.subtask_details.map((step) => [step.description, step.locked]), [['Collect the dish list', false], ['Sketch the layout', true], ['Send it to the printer', true]]);
+});
+
 test('recommendation: boss only, AI skills when available, keywords when not, same ranking either way', async () => {
   aiMode = 'good';
   assert.equal((await call(base, 'POST', '/work/recommend', { token: tokens.worker, body: { text: 'Design the new menu card' } })).status, 403);

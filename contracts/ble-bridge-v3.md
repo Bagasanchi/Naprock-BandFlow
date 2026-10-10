@@ -131,6 +131,7 @@ Session token required.
 | Endpoint | Who | Purpose |
 | --- | --- | --- |
 | `POST /work/recommend {"text": "..."}` | boss | Ranks every worker for the described work. |
+| `POST /work/breakdown {"title": "...", "priority": "...", "due": "..."}` | boss | Previews the AI's steps for a work that is not created yet: `{title, subtasks: [{description, order_index, depends_on_order_index}]}`. Nothing is saved; send the steps (edited or not) as `subtasks` to `POST /work`. `503` without AI, `502` when its answer is unusable. |
 | `POST /work/:workId/breakdown` | boss or the assigned worker | The AI rewrites the steps that are not done. `503` without AI, `502` when its answer is unusable; the work is left unchanged in both cases. |
 | `PATCH /workers/:id {"skills": [...]}` | boss | Replaces a worker's skill tags (`status` can be sent alone, as before). |
 | `PATCH /me {"skills": [...]}` | anyone | Replaces your own skill tags. |

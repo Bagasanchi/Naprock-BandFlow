@@ -369,6 +369,18 @@ const planBreakdown = async ({ title, priority, due, subtasks }) => {
   }
 };
 
+// Steps for a work that does not exist yet, so the boss can read and edit them before assigning it. Nothing
+// is saved. A single step made from the title is no preview, so there is no fallback: without a usable AI
+// answer this fails, and the caller can still create the work with its own steps or none.
+const previewBreakdown = async ({ title, priority = 'Medium', due = 'Unscheduled' }) => {
+  if (typeof title !== 'string' || !title.trim()) throw validationError('A title is required.');
+  if (!allowed.priorities.includes(priority)) throw validationError('Invalid priority.');
+  if (!aiBreakdownUrl && !ai.enabled) throw Object.assign(new Error('AI breakdown is not set up on the server. Add AI_API_KEY (see server/README.md).'), { status: 503 });
+  const planned = await planBreakdown({ title: title.trim(), priority, due: String(due || 'Unscheduled').trim() || 'Unscheduled' });
+  if (planned.source !== 'ai') throw Object.assign(new Error('The AI could not break this work down right now.'), { status: 502 });
+  return { title: planned.title, subtasks: planned.subtasks };
+};
+
 // Matrix category for a new work: the AI's answer when it holds up, the rules otherwise. "reason" is the
 // AI's sentence; when there is none, the sentence shown is written from the rules as the work is read.
 const planCategory = async ({ title, priority, due }) => {
@@ -971,6 +983,13 @@ const server = createServer(async (request, response) => {
       if (!user) return;
       if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can ask for a worker recommendation.' });
       return json(response, 200, await recommendWorkers((await readBody(request)).text));
+    }
+
+    if (request.method === 'POST' && url.pathname === '/work/breakdown') {
+      const user = requireUser(request, response);
+      if (!user) return;
+      if (user.role !== 'boss') return json(response, 403, { error: 'Only bosses can preview a breakdown.' });
+      return json(response, 200, await previewBreakdown(await readBody(request)));
     }
 
     const breakdownMatch = url.pathname.match(/^\/work\/([^/]+)\/breakdown$/);

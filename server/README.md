@@ -64,6 +64,7 @@ The API provides:
 - `GET /work`
 - `POST /work`
 - `POST /work/recommend` (boss only; ranks the workers for a described work)
+- `POST /work/breakdown` (boss only; AI steps for a work that is not created yet, nothing is saved)
 - `POST /work/:id/breakdown` (assigned worker or boss; the AI rewrites the steps that are not done)
 - `PATCH /work/:id` (assigned worker or boss; status: `In Progress`, `Review`, or `Done`)
 - `DELETE /work/:id` (boss only)
